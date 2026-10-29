@@ -485,7 +485,17 @@ function setCompareText(key, value) {
 
 function drawComparisonBody(canvas, geometry, theta) {
   const ctx = canvas.getContext('2d');
-  const { width, height } = canvas;
+  const rect = canvas.getBoundingClientRect();
+  const width = Math.max(rect.width, 1);
+  const height = Math.max(rect.height, 1);
+  const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+  const targetWidth = Math.round(width * pixelRatio);
+  const targetHeight = Math.round(height * pixelRatio);
+  if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+  }
+  ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
   const cx = width / 2;
   const cy = height / 2;
   const radius = Math.min(width, height) * 0.29;
