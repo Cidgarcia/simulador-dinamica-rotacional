@@ -1,111 +1,245 @@
-# Laboratório Virtual de Dinâmica de Rotação e Momento de Inércia
+# 🔄 Laboratório Virtual de Rotação
 
-Produto educacional para a disciplina **Física Experimental A** da **UNIVASF**.
-Simulador web que roda inteiramente no navegador e permite explorar como a massa, a
-geometria e a força aplicada afetam a rotação de corpos rígidos em torno de um eixo fixo.
+**Simulador interativo de dinâmica de rotação e momento de inércia**
 
-- Visualização 3D interativa (Three.js) com câmera orbital.
-- Quatro corpos: disco/cilindro maciço, anel fino, esfera maciça e barra fina.
-- Mostradores em unidades SI, gráficos de α(t), ω(t) e θ(t), e exportação CSV.
-- Comparação simultânea de disco e anel com relógio comum e roteiros guiados.
-- Sem backend, banco de dados, login ou serviços externos — pode ser hospedado como site estático (ex.: GitHub Pages).
+Produto educacional desenvolvido para a disciplina **Física Experimental A**, do curso de **Engenharia de Computação da UNIVASF**.
 
-## Requisitos
+Explore como a **massa**, a **forma do corpo**, o **tamanho** e a **força aplicada** influenciam o movimento de rotação.
 
-- [Node.js](https://nodejs.org/) 20.19 ou superior (testado com Node 22 e npm 10).
-- Navegador moderno com WebGL (Chrome, Edge, Firefox ou Safari recentes).
-  Sem WebGL, a aplicação continua funcionando, mas sem a visualização 3D.
+[🌐 Acessar o simulador](COLE_AQUI_O_LINK_DA_VERCEL) · [📋 Consultar a validação](./VALIDACAO.md)
 
-## Instalação e execução
+## ✨ O que você pode fazer
+
+- Observar **disco, anel, esfera e barra** em uma cena 3D interativa.
+- Alterar massa, raio ou comprimento, força e sentido de rotação.
+- Acompanhar torque, momento de inércia e grandezas angulares.
+- Visualizar gráficos de **aceleração, velocidade e posição angular**.
+- Comparar **disco e anel** simultaneamente, nas mesmas condições.
+- Realizar três experimentos guiados.
+- Exportar os dados do experimento em **CSV**.
+
+A aplicação executa os cálculos no próprio navegador. **Não exige cadastro nem banco de dados.** Os dados da execução são temporários; para guardá-los, exporte o CSV antes de recarregar a página.
+
+## 🚀 Como usar o simulador
+
+**Para usar a versão publicada, basta abrir o link do site. Não é necessário instalar nada.**
+
+1. **Escolha o corpo:** disco, anel, esfera ou barra.
+2. **Ajuste os valores:** massa, tamanho, força e sentido.
+3. Clique em **Iniciar** para observar o movimento.
+4. Use **Pausar/Continuar** para analisar um instante e **Reiniciar** para começar novamente.
+5. Acompanhe os valores e os gráficos abaixo da simulação.
+
+### Movimentar a câmera
+
+- **Arraste o mouse:** gire a visão da cena.
+- **Use a roda do mouse:** aproxime ou afaste.
+- **Clique em Restaurar visão:** retorne ao enquadramento inicial.
+
+A câmera muda apenas a visualização, sem alterar o eixo físico do experimento.
+
+### Comparar disco e anel
+
+Abra a seção **Disco × anel** e inicie a comparação. Os corpos usam a mesma massa, raio, força e tempo simulado.
+
+Observe qual ganha velocidade mais rapidamente e compare os gráficos.
+
+### Salvar os dados
+
+Clique em **Exportar dados em CSV**.
+
+O arquivo reúne os parâmetros do experimento, as unidades e os valores calculados. Ele pode ser aberto em programas de planilha para análise.
+
+> **Durante o uso:** alterar um parâmetro físico reinicia o experimento em zero. Cada execução dura até 20 segundos simulados. A reprodução em 0,25× ou 0,5× facilita observar o movimento.
+
+## 🧪 Experimentos guiados
+
+| Experimento | O que comparar | Resultado previsto |
+|---|---|---|
+| Disco × anel | Mesma massa, raio e força | O disco tem o dobro da aceleração angular do anel. |
+| Dobrar a massa | Mesmo corpo, tamanho e força | A aceleração angular cai pela metade. |
+| Dobrar a força | Mesmo corpo, massa e tamanho | A aceleração angular dobra. |
+
+Faça uma previsão antes de executar e depois confira os valores e as curvas.
+
+## 📐 Física utilizada
+
+O modelo considera:
+
+- Corpos rígidos e homogêneos.
+- Eixos fixos passando pelo centro de massa.
+- Ausência de atrito.
+- Força tangencial constante acompanhando o ponto de aplicação.
+- Partida do repouso: posição e velocidade angular iniciais iguais a zero.
+
+O sentido positivo é o **anti-horário visto de cima**.
+
+### Momento de inércia
+
+| Corpo | Eixo de rotação | Momento de inércia | Braço da força |
+|---|---|---|---|
+| Disco / cilindro maciço | Central, perpendicular ao plano | `I = MR²/2` | `b = R` |
+| Anel fino | Central, perpendicular ao plano | `I = MR²` | `b = R` |
+| Esfera maciça | Ao longo de um diâmetro | `I = 2MR²/5` | `b = R` |
+| Barra fina | Perpendicular à barra, pelo centro | `I = ML²/12` | `b = L/2` |
+
+**Símbolos:** `M` = massa; `R` = raio; `L` = comprimento; `b` = braço da força.
+
+### Equações do movimento
+
+| Grandeza | Equação | Unidade |
+|---|---|---|
+| Torque | `τ = ±bF` | N·m |
+| Aceleração angular | `α = τ/I` | rad/s² |
+| Velocidade angular | `ω = αt` | rad/s |
+| Posição angular | `θ = αt²/2` | rad |
+
+A expressão geral do módulo do torque é `|τ| = rF sen(φ)`. Como a força é tangencial, `φ = 90°`, e a expressão se reduz a `|τ| = bF`. O sinal indica o sentido de rotação.
+
+O simulador utiliza **soluções analíticas para aceleração constante**, avaliadas no tempo simulado. A posição angular permanece acumulada nos dados; o módulo `2π` é usado somente no desenho do objeto.
+
+### Limites dos controles
+
+| Parâmetro | Intervalo |
+|---|---|
+| Massa | 0,1 a 10 kg |
+| Raio | 0,05 a 0,5 m |
+| Comprimento da barra | 0,1 a 1,5 m |
+| Força | 0 a 5 N |
+
+Massa e dimensões precisam ser positivas. Força zero é permitida.
+
+## ✅ Caso de referência
+
+Para conferir o modelo, considere:
+
+**Massa = 2 kg · Raio = 0,5 m · Força = 1 N**
+
+| Resultado | Disco | Anel |
+|---|---:|---:|
+| Momento de inércia | 0,25 kg·m² | 0,50 kg·m² |
+| Torque | 0,50 N·m | 0,50 N·m |
+| Aceleração angular | 2 rad/s² | 1 rad/s² |
+| Velocidade em 2 s | 4 rad/s | 2 rad/s |
+| Posição angular em 2 s | 4 rad | 2 rad |
+
+Esses valores são referências para a validação dos cálculos. A validação numérica não comprova, por si só, a eficácia pedagógica do produto.
+
+## 💻 Executar no computador
+
+Esta seção é para quem deseja desenvolver ou modificar o projeto.
+
+### 1. Preparar o ambiente
+
+Instale o **Node.js compatível com as dependências do projeto** e o **Git**.
+
+### 2. Baixar o repositório
 
 ```bash
-npm ci            # instala as dependências exatas do package-lock.json
-npm run dev       # servidor de desenvolvimento (http://localhost:5173)
+git clone https://github.com/Cidgarcia/simulador-dinamica-rotacional.git
 ```
 
-Outros comandos:
+### 3. Entrar na pasta
 
 ```bash
-npm test          # testes do modelo físico (Vitest)
-npm run build     # gera a versão de produção em dist/
-npm run preview   # serve dist/ localmente (http://localhost:4173)
+cd simulador-dinamica-rotacional
 ```
 
-Os dados registrados na execução podem ser exportados pelo botão **Exportar dados em CSV**.
-O arquivo inclui parâmetros, unidades SI, momento de inércia, torque, aceleração angular
-e as amostras de tempo, velocidade e posição angular.
+### 4. Instalar as dependências
 
-### Hospedagem estática / GitHub Pages
-
-O `vite.config.js` usa `base: './'`, então todos os recursos são referenciados por
-caminhos relativos e o conteúdo de `dist/` funciona em qualquer subdiretório
-(por exemplo, `https://<usuario>.github.io/simulador-dinamica-rotacional/`).
-Basta publicar o conteúdo da pasta `dist/`.
-
-O repositório também contém o workflow manual `.github/workflows/deploy-pages.yml`.
-Após revisar o resultado, habilite **Settings → Pages → GitHub Actions** e execute o
-workflow pela aba **Actions**. Ele não é acionado automaticamente por push.
-
-## Como usar
-
-1. Escolha a geometria e ajuste massa, raio (ou comprimento, para a barra), força e sentido.
-2. Pressione **Iniciar**. Use **Pausar/Continuar** e **Reiniciar** quando quiser.
-3. Arraste sobre a cena para orbitar a câmera; use a roda do mouse para aproximar;
-   **Restaurar visão** volta ao enquadramento inicial. A câmera não altera o eixo físico.
-4. Ajuste a **velocidade de reprodução** (0,25×, 0,5× ou 1×) para observar giros rápidos.
-5. Use **Disco × anel** para comparar duas geometrias com a mesma massa, raio, força e relógio.
-6. Nos roteiros guiados, aplique os valores propostos e verifique a previsão antes de iniciar.
-
-Observações:
-
-- Alterar qualquer parâmetro físico pausa e reinicia o experimento em t = 0 (com aviso).
-- A velocidade de reprodução muda apenas o avanço do tempo simulado — animação,
-  mostradores e gráficos usam o mesmo tempo — e não reinicia o experimento.
-- Cada execução dura no máximo 20 s simulados.
-- Em giros rápidos, a animação pode parecer lenta, parada ou invertida (efeito
-  estroboscópico causado pela amostragem dos quadros). Os valores numéricos e os
-  gráficos continuam corretos; reduza a reprodução para observar melhor.
-
-## Modelo físico
-
-Hipóteses: corpo rígido e homogêneo, eixo fixo sem atrito, força tangencial de módulo
-constante que acompanha o ponto de aplicação, braço constante, partida do repouso
-(θ₀ = 0, ω₀ = 0). Sinal positivo: sentido anti-horário visto de cima.
-
-| Corpo | Eixo | Momento de inércia | Braço b |
-| --- | --- | --- | --- |
-| Disco / cilindro maciço | central, perpendicular ao plano | I = M R² / 2 | R |
-| Anel fino | central, perpendicular ao plano | I = M R² | R |
-| Esfera maciça | um diâmetro | I = 2 M R² / 5 | R |
-| Barra fina | perpendicular, pelo centro | I = M L² / 12 | L / 2 |
-
-τ = ± b F  α = τ / I  ω = α t  θ = α t² / 2
-
-O ângulo θ é mantido acumulado nos dados; a redução módulo 2π é feita apenas para desenhar.
-O tempo simulado avança de forma independente da taxa de quadros.
-
-Limites dos controles: massa 0,1–10 kg; raio 0,05–0,5 m; comprimento 0,1–1,5 m;
-força 0–5 N. Massa e dimensões devem ser estritamente positivas; força zero é permitida.
-
-## Estrutura
-
-```
-index.html          Estrutura da página (pt-BR, acessível)
-src/physics.js      Modelo físico puro (sem DOM/Three.js) — testável
-src/scene.js        Renderização 3D com Three.js
-src/charts.js       Gráficos ω(t) e θ(t) em Canvas 2D
-src/export.js       Geração e download do CSV com parâmetros e amostras
-src/format.js       Formatação numérica pt-BR e leitura de números com vírgula
-src/main.js         Controlador: estado, controles e laço único de animação
-src/style.css       Estilos
-tests/              Testes do modelo físico (Vitest)
+```bash
+npm ci
 ```
 
-Consulte [VALIDACAO.md](VALIDACAO.md) para a metodologia e os resultados de validação.
+### 5. Iniciar o projeto
 
-### Escopo da validação
+```bash
+npm run dev
+```
 
-Os testes automatizados verificam o modelo físico, os casos de referência e a geração
-do CSV. O build verifica que os módulos são empacotados pelo Vite. A aparência, a
-interação por clique, a visualização WebGL, o download acionado pelo navegador e a
-responsividade devem ser conferidos manualmente em um navegador antes da publicação.
+Abra o endereço exibido no terminal, normalmente:
+
+**http://localhost:5173**
+
+### Outros comandos
+
+| Comando | Função |
+|---|---|
+| `npm test` | Executa os testes do modelo físico e da exportação CSV. |
+| `npm run build` | Gera a versão de produção na pasta `dist/`. |
+| `npm run preview` | Abre uma prévia local da versão de produção após o build. |
+
+## 🌐 Publicação
+
+O projeto pode ser hospedado como site estático.
+
+### Vercel
+
+Ao importar o repositório, utilize:
+
+| Configuração | Valor |
+|---|---|
+| Framework | Vite |
+| Diretório raiz | `./` |
+| Comando de build | `npm run build` |
+| Diretório de saída | `dist` |
+| Variáveis de ambiente | Nenhuma necessária |
+
+### GitHub Pages
+
+O repositório também inclui um workflow de publicação manual:
+
+1. Acesse **Settings → Pages**.
+2. Selecione **GitHub Actions** como origem.
+3. Abra **Actions → Publicar no GitHub Pages**.
+4. Clique em **Run workflow** e selecione `main`.
+5. Aguarde a conclusão e abra o endereço indicado no deployment.
+
+Esse workflow não é executado automaticamente por push.
+
+## 🛠️ Tecnologias
+
+- **JavaScript:** lógica e cálculos.
+- **Three.js:** visualização 3D.
+- **Canvas 2D:** gráficos.
+- **Vite:** desenvolvimento e build.
+- **Vitest:** testes automatizados.
+- **HTML e CSS:** estrutura e interface responsiva.
+
+## 📁 Organização do projeto
+
+| Arquivo ou pasta | Responsabilidade |
+|---|---|
+| `index.html` | Estrutura da página. |
+| `src/physics.js` | Modelo físico independente da interface. |
+| `src/scene.js` | Cena 3D e câmera. |
+| `src/charts.js` | Gráficos de α(t), ω(t) e θ(t). |
+| `src/export.js` | Geração e download do CSV. |
+| `src/format.js` | Formatação numérica e leitura de valores. |
+| `src/main.js` | Controles, estado e animação. |
+| `src/style.css` | Aparência e responsividade. |
+| `tests/` | Testes automatizados. |
+| `VALIDACAO.md` | Metodologia e registros de validação. |
+
+## ⚠️ Limitações
+
+- O modelo não inclui atrito, resistência do ar ou deformações.
+- Não contempla deslocamento do eixo pelo teorema de Steiner.
+- A visualização 3D exige WebGL; sem ele, permanece disponível a parte numérica e gráfica.
+- Giros rápidos podem parecer lentos, parados ou invertidos por amostragem dos quadros. Reduza a velocidade de reprodução para facilitar a observação.
+
+Os testes automatizados verificam os cálculos e a geração do CSV. A verificação visual e dos controles deve ser registrada separadamente, conforme o ambiente efetivamente testado.
+
+## 🎓 Equipe
+
+**Universidade Federal do Vale do São Francisco — UNIVASF**  
+Engenharia de Computação · Física Experimental A · Turma 3C
+
+**Docente:** Mariele Regina Pinheiro Gonçalves
+
+**Integrantes:**
+
+- Isaac Emanuel de Sá Nascimento
+- Kayk Souza Calixto
+- Felipe de Oliveira Leite
+- Cid Augusto Garcia de Souza Junior
