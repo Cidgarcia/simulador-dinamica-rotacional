@@ -179,7 +179,8 @@ h1 {
   grid-template-columns: minmax(0, 1fr) minmax(320px, 360px);
   grid-template-areas:
     'stage controls'
-    'data data'
+    'data controls'
+    'charts charts'
     'comparison comparison'
     'guided guided'
     'theory theory';
@@ -199,10 +200,14 @@ h1 {
 .data {
   grid-area: data;
 }
+.data-charts {
+  grid-area: charts;
+}
 .comparison { grid-area: comparison; }
 .guided { grid-area: guided; }
 .theory { grid-area: theory; }
 .data,
+.data-charts,
 .comparison,
 .guided,
 .theory {
@@ -835,12 +840,13 @@ input[type='range']:focus-visible::-moz-range-thumb {
 
 .data {
   display: grid;
-  gap: 14px;
+  align-self: start;
+  gap: 10px;
 }
 
 .readouts {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
   gap: 1px;
   padding: 1px;
   margin: 0;
@@ -849,19 +855,19 @@ input[type='range']:focus-visible::-moz-range-thumb {
   background: var(--line-soft);
 }
 .readout {
-  padding: 12px 14px;
+  padding: 8px 10px;
   min-width: 0;
   background: var(--panel);
 }
 .readout dt {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .readout dd {
-  margin: 4px 0 0;
+  margin: 3px 0 0;
   display: flex;
   align-items: baseline;
   gap: 5px;
@@ -869,14 +875,14 @@ input[type='range']:focus-visible::-moz-range-thumb {
 }
 .readout dd > span:first-child {
   font-family: var(--mono);
-  font-size: 19px;
+  font-size: 17px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: #fff;
   overflow-wrap: anywhere;
 }
 .readout .unit {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-2);
 }
 .readout--live dd > span:first-child {
@@ -1162,7 +1168,7 @@ input[type='range']:focus-visible::-moz-range-thumb {
 @media (max-width: 980px) {
   .lab {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: 'stage' 'controls' 'data' 'comparison' 'guided' 'theory';
+    grid-template-areas: 'stage' 'controls' 'data' 'charts' 'comparison' 'guided' 'theory';
   }
   .stage-viewport {
     height: clamp(340px, 58vh, 560px);
