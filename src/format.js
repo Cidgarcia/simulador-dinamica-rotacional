@@ -57,4 +57,3 @@ export function parseDecimal(text) {
 export function formatRate(rate) {
   return `${formatNumber(rate, 2)}×`;
 }
-

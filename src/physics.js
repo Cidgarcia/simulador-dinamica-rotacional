@@ -196,4 +196,3 @@ export class Experiment {
     return { t: this.time, ...this.dynamics, omega, theta };
   }
 }
-
