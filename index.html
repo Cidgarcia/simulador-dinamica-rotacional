@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Laboratório Virtual de Dinâmica de Rotação e Momento de Inércia — Física Experimental A, UNIVASF." />
+    <meta name="theme-color" content="#06112a" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='26' fill='%232f6fd6'/%3E%3Cpath d='M32 6a26 26 0 0 1 26 26H32z' fill='%23ffc23d'/%3E%3Ccircle cx='32' cy='32' r='5' fill='%2306112a'/%3E%3C/svg%3E" />
+    <title>Laboratório Virtual de Dinâmica de Rotação · UNIVASF</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#controles">Pular para os controles</a>
+
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <div>
+          <p class="brand-kicker">UNIVASF · Física Experimental A</p>
+          <h1>Laboratório Virtual de Dinâmica de Rotação e Momento de Inércia</h1>
+        </div>
+      </div>
+      <p class="topbar-note">Corpos rígidos homogêneos · eixo fixo sem atrito · força tangencial constante</p>
+    </header>
+
+    <main class="lab" id="conteudo">
+      <!-- ÁREA EXPERIMENTAL -->
+      <section class="stage" aria-labelledby="stage-title">
+        <h2 id="stage-title" class="visually-hidden">Bancada experimental 3D</h2>
+        <div class="stage-viewport" id="viewport">
+          <div class="stage-hud stage-hud--top">
+            <div class="status-chip" id="status-chip" data-status="idle">
+              <span class="status-dot" aria-hidden="true"></span>
+              <span id="status-text">Pronto</span>
+            </div>
+            <div class="clock" aria-hidden="true">
+              <span class="clock-label">t</span>
+              <span class="clock-value" id="clock-value">0,00</span>
+              <span class="clock-unit">s</span>
+              <span class="clock-max">/ 20 s</span>
+            </div>
+            <button type="button" class="btn btn-ghost btn-sm" id="btn-view">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5V2L7 6l5 4V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7z" fill="currentColor"/></svg>
+              Restaurar visão
+            </button>
+          </div>
+
+          <aside class="legend" aria-label="Legenda da visualização">
+            <h3 class="legend-title">Legenda</h3>
+            <ul>
+              <li><span class="sw sw-axis" aria-hidden="true"></span>Eixo fixo de rotação</li>
+              <li><span class="sw sw-point" aria-hidden="true"></span>Ponto de aplicação</li>
+              <li><span class="sw sw-force" aria-hidden="true"></span>Força tangencial F</li>
+              <li><span class="sw sw-torque" aria-hidden="true"></span>Sentido do torque τ</li>
+              <li><span class="sw sw-mark" aria-hidden="true"></span>Marca de referência</li>
+            </ul>
+            <p class="legend-geo" id="legend-axis"></p>
+          </aside>
+
+          <p class="alias-hint" id="alias-hint" role="status" hidden></p>
+
+          <div class="webgl-fallback" id="webgl-fallback" hidden>
+            <svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="20" fill="none" stroke="currentColor" stroke-width="3"/><path d="M24 13v14M24 33v2" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/></svg>
+            <h3>Visualização 3D indisponível</h3>
+            <p id="webgl-fallback-text">
+              Seu navegador ou dispositivo não ofereceu suporte a WebGL. Os controles, os valores
+              medidos e os gráficos continuam funcionando normalmente.
+            </p>
+            <p class="small">Dica: ative a aceleração por hardware nas configurações do navegador ou use uma versão recente do Chrome, Edge ou Firefox.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- CONTROLES -->
+      <aside class="controls" id="controles" aria-labelledby="controls-title" tabindex="-1">
+        <h2 id="controls-title" class="panel-title">Controles do experimento</h2>
+
+        <form id="params-form" novalidate autocomplete="off">
+          <fieldset class="field-group">
+            <legend>Geometria do corpo</legend>
+            <div class="geo-grid">
+              <label class="geo-option"><input type="radio" name="geometry" value="disco" checked /><span><svg viewBox="0 0 32 32" aria-hidden="true"><ellipse cx="16" cy="16" rx="13" ry="13" /></svg>Disco / cilindro</span></label>
+              <label class="geo-option"><input type="radio" name="geometry" value="anel" /><span><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12" class="ring" /></svg>Anel fino</span></label>
+              <label class="geo-option"><input type="radio" name="geometry" value="esfera" /><span><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="13" /><ellipse cx="16" cy="16" rx="13" ry="4.5" class="line" /></svg>Esfera maciça</span></label>
+              <label class="geo-option"><input type="radio" name="geometry" value="barra" /><span><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="3" y="13.5" width="26" height="5" rx="1.5" /></svg>Barra fina</span></label>
+            </div>
+          </fieldset>
+
+          <div class="field" data-field="mass">
+            <div class="field-head">
+              <label for="mass-input">Massa <var>M</var></label>
+              <span class="input-unit"><input id="mass-input" name="mass" type="text" inputmode="decimal" aria-describedby="mass-hint mass-error" /><span aria-hidden="true">kg</span></span>
+            </div>
+            <input id="mass-range" type="range" aria-label="Massa M em quilogramas (controle deslizante)" />
+            <p class="hint" id="mass-hint"></p>
+            <p class="error" id="mass-error" role="alert"></p>
+          </div>
+
+          <div class="field" data-field="size">
+            <div class="field-head">
+              <label for="size-input" id="size-label">Raio <var>R</var></label>
+              <span class="input-unit"><input id="size-input" name="size" type="text" inputmode="decimal" aria-describedby="size-hint size-error" /><span aria-hidden="true">m</span></span>
+            </div>
+            <input id="size-range" type="range" aria-label="Raio R em metros (controle deslizante)" />
+            <p class="hint" id="size-hint"></p>
+            <p class="error" id="size-error" role="alert"></p>
+          </div>
+
+          <div class="field" data-field="force">
+            <div class="field-head">
+              <label for="force-input">Força <var>F</var></label>
+              <span class="input-unit"><input id="force-input" name="force" type="text" inputmode="decimal" aria-describedby="force-hint force-error" /><span aria-hidden="true">N</span></span>
+            </div>
+            <input id="force-range" type="range" aria-label="Força F em newtons (controle deslizante)" />
+            <p class="hint" id="force-hint"></p>
+            <p class="error" id="force-error" role="alert"></p>
+          </div>
+
+          <fieldset class="field-group">
+            <legend>Sentido da força (vista de cima)</legend>
+            <div class="segmented">
+              <label><input type="radio" name="direction" value="1" checked /><span>↺ Anti-horário</span></label>
+              <label><input type="radio" name="direction" value="-1" /><span>↻ Horário</span></label>
+            </div>
+          </fieldset>
+        </form>
+
+        <p class="notice" id="notice" role="status" aria-live="polite"></p>
+
+        <div class="run-controls" role="group" aria-label="Execução">
+          <button type="button" class="btn btn-primary" id="btn-run">
+            <svg viewBox="0 0 24 24" aria-hidden="true" id="run-icon"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>
+            <span id="run-label">Iniciar</span>
+          </button>
+          <button type="button" class="btn btn-secondary" id="btn-reset">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5V2L7 6l5 4V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7z" fill="currentColor"/></svg>
+            Reiniciar
+          </button>
+        </div>
+        <button type="button" class="btn btn-secondary export-btn" id="btn-export-csv" disabled>
+          Exportar dados em CSV
+        </button>
+
+        <fieldset class="field-group">
+          <legend>Velocidade de reprodução</legend>
+          <div class="segmented segmented--3">
+            <label><input type="radio" name="rate" value="0.25" /><span>0,25×</span></label>
+            <label><input type="radio" name="rate" value="0.5" /><span>0,5×</span></label>
+            <label><input type="radio" name="rate" value="1" checked /><span>1×</span></label>
+          </div>
+          <p class="hint">Altera o avanço do tempo simulado (animação, valores e gráficos). Não reinicia o experimento. Cada execução dura até 20 s simulados.</p>
+        </fieldset>
+
+        <details class="model">
+          <summary>Hipóteses do modelo</summary>
+          <ul>
+            <li>Corpo rígido e homogêneo; eixo fixo sem atrito.</li>
+            <li>Força tangencial de módulo constante, que acompanha o ponto de aplicação; braço constante.</li>
+            <li>Partida do repouso: θ₀ = 0, ω₀ = 0.</li>
+            <li>Sinal positivo: anti-horário visto de cima.</li>
+            <li>Os raios do anel são apenas suporte visual (massa desprezível).</li>
+          </ul>
+        </details>
+      </aside>
+
+      <!-- DADOS -->
+      <section class="data" aria-labelledby="data-title">
+        <h2 id="data-title" class="visually-hidden">Medidas e gráficos</h2>
+
+        <dl class="readouts" id="readouts">
+          <div class="readout"><dt>Tempo <var>t</var></dt><dd><span data-out="t">0,00</span><span class="unit">s</span></dd></div>
+          <div class="readout"><dt>Momento de inércia <var>I</var></dt><dd><span data-out="I">—</span><span class="unit">kg·m²</span></dd></div>
+          <div class="readout"><dt>Torque <var>τ</var></dt><dd><span data-out="tau">—</span><span class="unit">N·m</span></dd></div>
+          <div class="readout"><dt>Aceleração angular <var>α</var></dt><dd><span data-out="alpha">—</span><span class="unit">rad/s²</span></dd></div>
+          <div class="readout readout--live"><dt>Velocidade angular <var>ω</var></dt><dd><span data-out="omega">0</span><span class="unit">rad/s</span></dd></div>
+          <div class="readout readout--live"><dt>Posição angular <var>θ</var></dt><dd><span data-out="theta">0</span><span class="unit">rad</span></dd><span class="readout-sub" data-out="turns">0 voltas</span></div>
+        </dl>
+
+        <div class="equations" id="equations" aria-label="Equações com os valores atuais"></div>
+
+        <div class="charts">
+          <figure class="chart">
+            <figcaption><span class="chart-swatch chart-swatch--omega" aria-hidden="true"></span>Velocidade angular <var>ω</var>(<var>t</var>)</figcaption>
+            <div class="chart-body">
+              <canvas id="chart-omega" role="img" aria-label="Gráfico da velocidade angular em função do tempo"></canvas>
+              <div class="empty-state" data-empty>
+                <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M6 40h36M8 40V8" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"/><path d="M10 36 40 12" stroke="currentColor" stroke-width="2.5" stroke-dasharray="3 4" fill="none" stroke-linecap="round"/></svg>
+                <p><strong>Sem dados ainda</strong>Pressione <em>Iniciar</em> para registrar ω em função do tempo.</p>
+              </div>
+            </div>
+          </figure>
+          <figure class="chart">
+            <figcaption><span class="chart-swatch chart-swatch--theta" aria-hidden="true"></span>Posição angular <var>θ</var>(<var>t</var>)</figcaption>
+            <div class="chart-body">
+              <canvas id="chart-theta" role="img" aria-label="Gráfico da posição angular acumulada em função do tempo"></canvas>
+              <div class="empty-state" data-empty>
+                <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M6 40h36M8 40V8" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"/><path d="M10 38C24 37 32 28 40 10" stroke="currentColor" stroke-width="2.5" stroke-dasharray="3 4" fill="none" stroke-linecap="round"/></svg>
+                <p><strong>Sem dados ainda</strong>A posição angular acumulada aparecerá aqui durante a execução.</p>
+              </div>
+            </div>
+          </figure>
+          <figure class="chart">
+            <figcaption><span class="chart-swatch chart-swatch--alpha" aria-hidden="true"></span>Aceleração angular <var>α</var>(<var>t</var>)</figcaption>
+            <div class="chart-body">
+              <canvas id="chart-alpha" role="img" aria-label="Gráfico da aceleração angular em função do tempo"></canvas>
+              <div class="empty-state" data-empty>
+                <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M6 40h36M8 40V8M10 24h30" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"/></svg>
+                <p><strong>Sem dados ainda</strong>A aceleração angular constante aparecerá aqui durante a execução.</p>
+              </div>
+            </div>
+          </figure>
+        </div>
+      </section>
+
+      <section class="comparison panel-section" id="comparacao" aria-labelledby="comparison-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Experimento comparativo</p>
+            <h2 id="comparison-title">Disco × anel sob as mesmas condições</h2>
+          </div>
+          <button type="button" class="btn btn-secondary btn-sm" id="btn-comparison-run">Iniciar comparação</button>
+        </div>
+        <p class="section-lead">Massa, raio, força, sentido e relógio são idênticos. A única variável alterada é a distribuição da massa.</p>
+        <div class="comparison-controls">
+          <label>Massa <input id="comparison-mass" type="number" min="0.1" max="10" step="0.1" value="2" inputmode="decimal" /> <span>kg</span></label>
+          <label>Raio <input id="comparison-radius" type="number" min="0.05" max="0.5" step="0.01" value="0.5" inputmode="decimal" /> <span>m</span></label>
+          <label>Força <input id="comparison-force" type="number" min="0" max="5" step="0.05" value="1" inputmode="decimal" /> <span>N</span></label>
+          <button type="button" class="btn btn-ghost btn-sm" id="btn-comparison-reset">Reiniciar</button>
+        </div>
+        <p class="comparison-notice" id="comparison-notice" role="status"></p>
+        <div class="comparison-bodies">
+          <article class="comparison-body comparison-body--disk">
+            <header><span class="comparison-dot" aria-hidden="true"></span><h3>Disco maciço</h3></header>
+            <canvas id="comparison-disk" width="240" height="180" role="img" aria-label="Visualização do disco em rotação"></canvas>
+            <dl><div><dt>I</dt><dd data-compare="disk-I">—</dd></div><div><dt>α</dt><dd data-compare="disk-alpha">—</dd></div><div><dt>ω</dt><dd data-compare="disk-omega">0</dd></div><div><dt>θ</dt><dd data-compare="disk-theta">0</dd></div></dl>
+          </article>
+          <article class="comparison-body comparison-body--ring">
+            <header><span class="comparison-dot" aria-hidden="true"></span><h3>Anel fino</h3></header>
+            <canvas id="comparison-ring" width="240" height="180" role="img" aria-label="Visualização do anel em rotação"></canvas>
+            <dl><div><dt>I</dt><dd data-compare="ring-I">—</dd></div><div><dt>α</dt><dd data-compare="ring-alpha">—</dd></div><div><dt>ω</dt><dd data-compare="ring-omega">0</dd></div><div><dt>θ</dt><dd data-compare="ring-theta">0</dd></div></dl>
+          </article>
+        </div>
+        <div class="comparison-charts">
+          <figure class="chart comparison-chart">
+            <figcaption><span class="chart-swatch chart-swatch--disk" aria-hidden="true"></span>Disco <span class="chart-swatch chart-swatch--ring" aria-hidden="true"></span>Anel — aceleração angular <var>α</var>(<var>t</var>) · rad/s²</figcaption>
+            <div class="chart-body"><canvas id="comparison-chart-alpha" role="img" aria-label="Comparação da aceleração angular, em radianos por segundo ao quadrado, entre disco e anel"></canvas></div>
+          </figure>
+          <figure class="chart comparison-chart">
+            <figcaption><span class="chart-swatch chart-swatch--disk" aria-hidden="true"></span>Disco <span class="chart-swatch chart-swatch--ring" aria-hidden="true"></span>Anel — velocidade angular <var>ω</var>(<var>t</var>) · rad/s</figcaption>
+            <div class="chart-body"><canvas id="comparison-chart-omega" role="img" aria-label="Comparação da velocidade angular, em radianos por segundo, entre disco e anel"></canvas></div>
+          </figure>
+          <figure class="chart comparison-chart">
+            <figcaption><span class="chart-swatch chart-swatch--disk" aria-hidden="true"></span>Disco <span class="chart-swatch chart-swatch--ring" aria-hidden="true"></span>Anel — posição angular <var>θ</var>(<var>t</var>) · rad</figcaption>
+            <div class="chart-body"><canvas id="comparison-chart-theta" role="img" aria-label="Comparação da posição angular acumulada, em radianos, entre disco e anel"></canvas></div>
+          </figure>
+        </div>
+      </section>
+
+      <section class="guided panel-section" aria-labelledby="guided-title">
+        <div class="section-heading"><div><p class="eyebrow">Roteiros práticos</p><h2 id="guided-title">Experimentos guiados</h2></div></div>
+        <div class="guide-grid">
+          <article><span class="guide-number">01</span><h3>Disco versus anel</h3><p>Mantenha M, R e F. Observe que o disco tem menor I e, por isso, maior α.</p><button type="button" class="btn btn-ghost btn-sm" data-guide="comparison">Carregar comparação</button></article>
+          <article><span class="guide-number">02</span><h3>Dobrar a massa</h3><p>Com disco, R = 0,5 m e F = 1 N, compare M = 2 kg com M = 4 kg. A aceleração cai pela metade.</p><button type="button" class="btn btn-ghost btn-sm" data-guide="mass">Aplicar M = 4 kg</button></article>
+          <article><span class="guide-number">03</span><h3>Dobrar a força</h3><p>Com disco, M = 2 kg e R = 0,5 m, compare F = 1 N com F = 2 N. A aceleração dobra.</p><button type="button" class="btn btn-ghost btn-sm" data-guide="force">Aplicar F = 2 N</button></article>
+        </div>
+      </section>
+
+      <section class="theory panel-section" aria-labelledby="theory-title">
+        <div class="section-heading"><div><p class="eyebrow">Base conceitual</p><h2 id="theory-title">Fórmulas e hipóteses do laboratório</h2></div></div>
+        <div class="theory-grid">
+          <div><h3>Dinâmica rotacional</h3><p>O torque da força tangencial é <strong>τ = ±bF</strong>. Sem atrito, ele produz aceleração angular constante: <strong>α = τ/I</strong>.</p><p>Partindo do repouso: <strong>ω = αt</strong> e <strong>θ = ½αt²</strong>. O sistema guarda θ acumulado; apenas o desenho usa θ módulo 2π.</p></div>
+          <div><h3>Momentos de inércia</h3><ul><li>Disco: <strong>I = MR²/2</strong></li><li>Anel fino: <strong>I = MR²</strong></li><li>Esfera maciça: <strong>I = 2MR²/5</strong></li><li>Barra: <strong>I = ML²/12</strong></li></ul><p>Os resultados valem para corpos rígidos homogêneos, eixo fixo e força tangencial constante aplicada no braço indicado.</p></div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p>Produto educacional · Física Experimental A · Universidade Federal do Vale do São Francisco (UNIVASF)</p>
+    </footer>
+
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
