@@ -176,7 +176,7 @@ h1 {
 
 .lab {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 360px);
   grid-template-areas:
     'stage controls'
     'data data'
@@ -202,6 +202,12 @@ h1 {
 .comparison { grid-area: comparison; }
 .guided { grid-area: guided; }
 .theory { grid-area: theory; }
+.data,
+.comparison,
+.guided,
+.theory {
+  min-width: 0;
+}
 
 /* ---------- Área experimental ---------- */
 
@@ -460,8 +466,9 @@ h1 {
 /* ---------- Painel de controles ---------- */
 
 .controls {
-  position: sticky;
-  top: 16px;
+  position: static;
+  align-self: start;
+  min-width: 0;
   padding: 18px;
   border-radius: var(--radius);
   background: linear-gradient(180deg, var(--panel), #0b1c3e);
@@ -833,20 +840,18 @@ input[type='range']:focus-visible::-moz-range-thumb {
 
 .readouts {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 1px;
+  padding: 1px;
   margin: 0;
   border-radius: var(--radius);
   border: 1px solid var(--line);
-  background: var(--panel);
-  overflow: hidden;
+  background: var(--line-soft);
 }
 .readout {
   padding: 12px 14px;
-  border-left: 1px solid var(--line-soft);
   min-width: 0;
-}
-.readout:first-child {
-  border-left: 0;
+  background: var(--panel);
 }
 .readout dt {
   font-size: 12px;
@@ -1154,25 +1159,10 @@ input[type='range']:focus-visible::-moz-range-thumb {
 
 /* ---------- Responsivo ---------- */
 
-@media (max-width: 1280px) {
-  .readouts {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-  .readout:nth-child(4) {
-    border-left: 0;
-  }
-  .readout:nth-child(n + 4) {
-    border-top: 1px solid var(--line-soft);
-  }
-}
-
 @media (max-width: 980px) {
   .lab {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas: 'stage' 'controls' 'data' 'comparison' 'guided' 'theory';
-  }
-  .controls {
-    position: static;
   }
   .stage-viewport {
     height: clamp(340px, 58vh, 560px);
@@ -1195,16 +1185,6 @@ input[type='range']:focus-visible::-moz-range-thumb {
   }
   .readouts {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .readout:nth-child(n) {
-    border-left: 0;
-    border-top: 1px solid var(--line-soft);
-  }
-  .readout:nth-child(even) {
-    border-left: 1px solid var(--line-soft);
-  }
-  .readout:nth-child(-n + 2) {
-    border-top: 0;
   }
   .legend {
     max-width: 190px;
