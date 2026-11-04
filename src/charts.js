@@ -13,9 +13,10 @@ function niceStep(range, target = 5) {
   return step * mag;
 }
 
-export function createChart(canvas, { key, color, label, unit }) {
+export function createChart(canvas, { key, measuredKey, color, label, unit }) {
   const ctx = canvas.getContext('2d');
   let samples = [];
+  let noiseEnabled = false;
   let cssW = 0;
   let cssH = 0;
 
@@ -42,10 +43,16 @@ export function createChart(canvas, { key, color, label, unit }) {
     let min = 0;
     let max = 0;
     for (const s of samples) {
-      const v = s[key];
-      if (!Number.isFinite(v)) continue;
-      if (v < min) min = v;
-      if (v > max) max = v;
+      const vTeo = s[key];
+      const vMed = noiseEnabled && measuredKey ? s[measuredKey] : vTeo;
+      if (Number.isFinite(vTeo)) {
+        if (vTeo < min) min = vTeo;
+        if (vTeo > max) max = vTeo;
+      }
+      if (Number.isFinite(vMed)) {
+        if (vMed < min) min = vMed;
+        if (vMed > max) max = vMed;
+      }
     }
     if (max - min < 1e-12) {
       max = min + 1;
@@ -101,27 +108,76 @@ export function createChart(canvas, { key, color, label, unit }) {
 
     if (samples.length < 2) return;
 
-    // curva
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2.2;
-    ctx.lineJoin = 'round';
-    ctx.beginPath();
-    let started = false;
-    for (const s of samples) {
-      const v = s[key];
-      if (!Number.isFinite(v)) continue;
-      if (!started) {
-        ctx.moveTo(x(s.t), y(v));
-        started = true;
-      } else ctx.lineTo(x(s.t), y(v));
+    if (noiseEnabled && measuredKey) {
+      // Curva teórica tracejada de referência
+      ctx.save();
+      ctx.strokeStyle = 'rgba(207, 232, 255, 0.42)';
+      ctx.lineWidth = 1.6;
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath();
+      let startedTeo = false;
+      for (const s of samples) {
+        const vTeo = s[key];
+        if (!Number.isFinite(vTeo)) continue;
+        if (!startedTeo) {
+          ctx.moveTo(x(s.t), y(vTeo));
+          startedTeo = true;
+        } else ctx.lineTo(x(s.t), y(vTeo));
+      }
+      ctx.stroke();
+      ctx.restore();
+
+      // Trilha experimental medida com dispersão
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.8;
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      let startedMed = false;
+      for (const s of samples) {
+        const vMed = s[measuredKey] ?? s[key];
+        if (!Number.isFinite(vMed)) continue;
+        if (!startedMed) {
+          ctx.moveTo(x(s.t), y(vMed));
+          startedMed = true;
+        } else ctx.lineTo(x(s.t), y(vMed));
+      }
+      ctx.stroke();
+
+      // Pontos experimentais discretizados para destacar a dispersão
+      ctx.fillStyle = color;
+      const stride = Math.max(1, Math.floor(samples.length / 45));
+      for (let i = 0; i < samples.length; i += stride) {
+        const s = samples[i];
+        const vMed = s[measuredKey] ?? s[key];
+        if (!Number.isFinite(vMed)) continue;
+        ctx.beginPath();
+        ctx.arc(x(s.t), y(vMed), 2.3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else {
+      // Curva determinística limpa
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2.2;
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      let started = false;
+      for (const s of samples) {
+        const v = s[key];
+        if (!Number.isFinite(v)) continue;
+        if (!started) {
+          ctx.moveTo(x(s.t), y(v));
+          started = true;
+        } else ctx.lineTo(x(s.t), y(v));
+      }
+      ctx.stroke();
     }
-    ctx.stroke();
 
     const last = samples[samples.length - 1];
-    if (Number.isFinite(last[key])) {
+    const lastVal = noiseEnabled && measuredKey ? (last[measuredKey] ?? last[key]) : last[key];
+    if (Number.isFinite(lastVal)) {
       ctx.fillStyle = color;
       ctx.beginPath();
-      ctx.arc(x(last.t), y(last[key]), 4, 0, Math.PI * 2);
+      ctx.arc(x(last.t), y(lastVal), 4, 0, Math.PI * 2);
       ctx.fill();
     }
   }
@@ -130,8 +186,9 @@ export function createChart(canvas, { key, color, label, unit }) {
   ro.observe(canvas);
 
   return {
-    setSamples(s) {
+    setSamples(s, opts = {}) {
       samples = s;
+      if (typeof opts.noiseEnabled === 'boolean') noiseEnabled = opts.noiseEnabled;
       draw();
     },
     redraw: draw,

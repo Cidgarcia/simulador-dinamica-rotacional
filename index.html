@@ -135,6 +135,33 @@
               <label><input type="radio" name="direction" value="-1" /><span>↻ Horário</span></label>
             </div>
           </fieldset>
+
+          <fieldset class="field-group noise-group">
+            <legend>Aquisição experimental e incertezas</legend>
+            <label class="toggle-control" for="noise-toggle">
+              <input type="checkbox" id="noise-toggle" name="noiseEnabled" />
+              <span class="toggle-track" aria-hidden="true"></span>
+              <span class="toggle-label">Simular incerteza experimental (ruído de sensor)</span>
+            </label>
+            <div class="noise-options" id="noise-options" hidden>
+              <div class="noise-subrow">
+                <span class="noise-sublabel">Nível de ruído relativo (<var>σ</var><sub>rel</sub>)</span>
+                <div class="segmented segmented--3" role="radiogroup" aria-label="Nível de ruído relativo do sensor">
+                  <label><input type="radio" name="noiseLevel" value="0.01" /><span>1%</span></label>
+                  <label><input type="radio" name="noiseLevel" value="0.02" checked /><span>2%</span></label>
+                  <label><input type="radio" name="noiseLevel" value="0.05" /><span>5%</span></label>
+                </div>
+              </div>
+              <p class="hint">Incerteza instrumental fixa da base de tempo: <strong>±0,01 s</strong> · Ruído gaussiano (Box-Muller) em <var>θ</var>, <var>ω</var> e <var>α</var>.</p>
+            </div>
+            <div class="noise-subrow sample-rate-row">
+              <span class="noise-sublabel">Intervalo de amostragem (<var>Δt</var>)</span>
+              <div class="segmented" role="radiogroup" aria-label="Intervalo de amostragem discreta da tabela e CSV">
+                <label><input type="radio" name="sampleDt" value="0.2" checked /><span>0,20 s</span></label>
+                <label><input type="radio" name="sampleDt" value="0.5" /><span>0,50 s</span></label>
+              </div>
+            </div>
+          </fieldset>
         </form>
 
         <p class="notice" id="notice" role="status" aria-live="polite"></p>
@@ -149,9 +176,6 @@
             Reiniciar
           </button>
         </div>
-        <button type="button" class="btn btn-secondary export-btn" id="btn-export-csv" disabled>
-          Exportar dados em CSV
-        </button>
 
         <fieldset class="field-group">
           <legend>Velocidade de reprodução</legend>
@@ -169,8 +193,9 @@
             <li>Corpo rígido e homogêneo; eixo fixo sem atrito, paralelo ao eixo central a uma distância <strong>d ≥ 0</strong> do centro de massa (CM).</li>
             <li>Teorema de Steiner: <strong>I = Icm + Md²</strong>.</li>
             <li>Ponto de aplicação na borda/extremidade oposta ao deslocamento do eixo, a <strong>b = b_cm + d</strong> do eixo de rotação; força <strong>F</strong> perpendicular a <strong>r</strong> (tangencial à trajetória do ponto), gerando torque <strong>τ = (r × F)_eixo = ±(b_cm + d)F</strong>.</li>
-            <li>Partida do repouso: θ₀ = 0, ω₀ = 0. Sinal positivo: anti-horário visto de cima.</li>
-            <li>A haste de acoplamento do eixo e os raios do anel têm massa desprezível (suporte visual).</li>
+            <li><strong>Vínculo mecânico (atuador tangencial / tambor concêntrico):</strong> A força tangencial contínua de módulo constante <strong>F ⊥ r</strong> (que mantém <strong>φ = 90°</strong> ao longo de múltiplas revoluções com braço efetivo <strong>b = b_cm + d</strong>) representa um <strong>atuador tangencial ideal solidário à borda</strong> ou o equivalente dinâmico de um sistema de fio inextensível tracionado em tambor cilíndrico concêntrico de raio efetivo <strong>b = b_cm + d</strong> acoplado rigidamente ao sistema sem massa adicional.</li>
+            <li>Partida do repouso: θ₀ = 0, ω₀ = 0. Sinal positivo: anti-horário visto de cima. Teorema do Trabalho-Energia: <strong>W = τ Δθ = ΔK_rot = ½ I ω²</strong>.</li>
+            <li>A haste rígida de acoplamento (que liga o eixo fixo ao CM e ao ponto de aplicação, inclusive quando <strong>d &gt; R</strong>) e os raios do anel têm massa desprezível.</li>
           </ul>
         </details>
       </aside>
@@ -180,15 +205,48 @@
         <h2 id="data-title" class="visually-hidden">Medidas e gráficos</h2>
 
         <dl class="readouts" id="readouts">
-          <div class="readout"><dt>Tempo <var>t</var></dt><dd><span data-out="t">0,00</span><span class="unit">s</span></dd></div>
+          <div class="readout"><dt>Tempo <var>t</var></dt><dd><span data-out="t">0,00</span><span class="unit">s</span></dd><span class="readout-sub" data-out="t-sub">Δt_inst = ±0,01 s</span></div>
           <div class="readout"><dt>Momento de inércia <var>I</var></dt><dd><span data-out="I">—</span><span class="unit">kg·m²</span></dd><span class="readout-sub" data-out="inertia-sub">Icm = — · Md² = 0</span></div>
           <div class="readout"><dt>Torque <var>τ</var></dt><dd><span data-out="tau">—</span><span class="unit">N·m</span></dd><span class="readout-sub" data-out="torque-sub">b = — m</span></div>
-          <div class="readout"><dt>Aceleração angular <var>α</var></dt><dd><span data-out="alpha">—</span><span class="unit">rad/s²</span></dd></div>
-          <div class="readout readout--live"><dt>Velocidade angular <var>ω</var></dt><dd><span data-out="omega">0</span><span class="unit">rad/s</span></dd></div>
+          <div class="readout"><dt>Aceleração angular <var>α</var></dt><dd><span data-out="alpha">—</span><span class="unit">rad/s²</span></dd><span class="readout-sub" data-out="alpha-sub">Determinístico</span></div>
+          <div class="readout readout--live"><dt>Velocidade angular <var>ω</var></dt><dd><span data-out="omega">0</span><span class="unit">rad/s</span></dd><span class="readout-sub" data-out="omega-sub">ω(t) = αt</span></div>
           <div class="readout readout--live"><dt>Posição angular <var>θ</var></dt><dd><span data-out="theta">0</span><span class="unit">rad</span></dd><span class="readout-sub" data-out="turns">0 voltas</span></div>
+          <div class="readout readout--energy"><dt>Energia cinética <var>K</var><sub>rot</sub></dt><dd><span data-out="krot">0</span><span class="unit">J</span></dd><span class="readout-sub" data-out="krot-sub">K_rot = ½ I ω²</span></div>
+          <div class="readout readout--energy"><dt>Trabalho do torque <var>W</var></dt><dd><span data-out="work">0</span><span class="unit">J</span></dd><span class="readout-sub" data-out="power-sub">P = 0 W (τ·ω)</span></div>
         </dl>
 
         <div class="equations" id="equations" aria-label="Equações com os valores atuais"></div>
+
+        <div class="data-export-bar">
+          <button type="button" class="btn btn-secondary export-btn" id="btn-export-csv" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20h14v-2H5v2zM12 3v10.17l3.59-3.58L17 11l-5 5-5-5 1.41-1.41L11 13.17V3h1z" fill="currentColor"/></svg>
+            Exportar CSV (Dados Experimentais)
+          </button>
+          <span class="export-status" id="sample-count-badge">0 amostras coletadas (Δt = 0,20 s)</span>
+        </div>
+
+        <details class="sample-table-details" id="sample-table-details">
+          <summary>Ver tabela de dados amostrados (t, θ, ω, K)</summary>
+          <div class="table-scroll">
+            <table class="sample-table" aria-label="Tabela de dados experimentais amostrados">
+              <thead>
+                <tr>
+                  <th scope="col"><var>t</var> (s)</th>
+                  <th scope="col"><var>θ</var><sub>teór</sub> (rad)</th>
+                  <th scope="col"><var>θ</var><sub>med</sub> (rad)</th>
+                  <th scope="col"><var>ω</var><sub>teór</sub> (rad/s)</th>
+                  <th scope="col"><var>ω</var><sub>med</sub> (rad/s)</th>
+                  <th scope="col"><var>α</var><sub>med</sub> (rad/s²)</th>
+                  <th scope="col"><var>K</var><sub>rot</sub> (J)</th>
+                  <th scope="col"><var>W</var> (J)</th>
+                </tr>
+              </thead>
+              <tbody id="sample-table-body">
+                <tr class="table-empty-row"><td colspan="8">Nenhuma amostra registrada. Pressione <em>Iniciar</em> para coletar pares ordenados.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </details>
 
       </section>
 
@@ -368,10 +426,11 @@
             </ul>
           </div>
           <div>
-            <h3>Ponto de aplicação, torque e cinemática</h3>
+            <h3>Ponto de aplicação, atuador tangencial e conservação de energia</h3>
             <p>Na bancada principal, o eixo fixo está na origem e o CM do corpo fica a uma distância <strong>d</strong>. A força <strong>F</strong> é aplicada na borda/extremidade oposta ao deslocamento do eixo, cujo vetor posição em relação ao eixo de rotação tem módulo <strong>b = |r| = b<sub>cm</sub> + d</strong>. Como <strong>F</strong> é perpendicular a <strong>r</strong> (tangencial à trajetória do ponto de aplicação, <strong>φ = 90°</strong>), o torque em relação ao eixo de rotação é:</p>
             <p><strong>τ = (r × F)<sub>eixo</sub> = ±(b<sub>cm</sub> + d) F</strong></p>
-            <p>Partindo do repouso (<strong>θ₀ = 0</strong>, <strong>ω₀ = 0</strong>) e sem atrito: <strong>α = τ/I</strong>, <strong>ω = αt</strong> e <strong>θ = ½αt²</strong>. Já no comparativo de Steiner, mantém-se o mesmo torque <strong>τ</strong> nos dois eixos para isolar o efeito puro do aumento quadrático de <strong>I</strong> com <strong>d</strong>.</p>
+            <p><strong>Equivalência mecânica do atuador:</strong> A força tangencial contínua de módulo constante <strong>F ⊥ r</strong> (mantendo <strong>φ = 90°</strong> ao longo de múltiplas revoluções com braço efetivo <strong>b = b<sub>cm</sub> + d</strong>) representa um <strong>atuador tangencial ideal solidário à borda</strong> — ou o equivalente dinâmico de um sistema de fio inextensível tracionado em tambor cilíndrico concêntrico de raio efetivo <strong>b = b<sub>cm</sub> + d</strong> acoplado rigidamente ao sistema sem massa adicional.</p>
+            <p>Partindo do repouso (<strong>θ₀ = 0</strong>, <strong>ω₀ = 0</strong>) e sem forças dissipativas: <strong>α = τ/I</strong>, <strong>ω = αt</strong>, <strong>θ = ½αt²</strong>, e o trabalho rotacional realizado pelo torque converte-se integralmente em energia cinética rotacional pelo <strong>Teorema do Trabalho-Energia</strong>: <strong>W = τ Δθ = K<sub>rot</sub> = ½ I ω²</strong>, com potência instantânea <strong>P = dW/dt = τ ω</strong>.</p>
           </div>
         </div>
       </section>

@@ -237,10 +237,15 @@ export function createLabScene(container) {
     roughness: 0.35,
   });
   const steinerGroup = new THREE.Group();
-  // Haste estrutural de acoplamento entre o eixo de rotação (0,0,0) e o CM (0,0,d)
-  const supportBar = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 1, 16), darkMetal);
+  // Haste estrutural de acoplamento entre o eixo de rotação (0,0,0), o CM (0,0,d) e o ponto de aplicação (0,0,b)
+  const supportBar = new THREE.Mesh(new THREE.CylinderGeometry(0.0085, 0.0085, 1, 16), darkMetal);
   supportBar.rotation.x = Math.PI / 2;
   supportBar.castShadow = true;
+  // Buchas mecânicas no eixo fixo e no CM para acoplamento sem artefatos quando d > R
+  const pivotHub = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.036, 24), darkMetal);
+  pivotHub.castShadow = true;
+  const cmHub = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.017, 0.032, 24), darkMetal);
+  cmHub.castShadow = true;
   // Indicador superior da distância d entre o eixo fixo e o eixo do CM
   const offsetLink = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 1, 16), cmMat);
   offsetLink.rotation.x = Math.PI / 2;
@@ -248,7 +253,7 @@ export function createLabScene(container) {
   const cmAxisPin = new THREE.Mesh(new THREE.CylinderGeometry(0.0055, 0.0055, 0.32, 16), cmMat);
   const cmCap = new THREE.Mesh(new THREE.SphereGeometry(0.015, 18, 12), cmMat);
   const axisCollar = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.018, 20), cmMat);
-  steinerGroup.add(supportBar, offsetLink, cmAxisPin, cmCap, axisCollar);
+  steinerGroup.add(supportBar, pivotHub, cmHub, offsetLink, cmAxisPin, cmCap, axisCollar);
   steinerGroup.visible = false;
   rotor.add(steinerGroup);
 
@@ -338,8 +343,11 @@ export function createLabScene(container) {
 
     if (d > 0) {
       const linkY = top + 0.035;
-      supportBar.scale.set(1, d, 1);
-      supportBar.position.set(0, 0, d / 2);
+      // Haste rígida conecta o eixo fixo (0,0,0) ao CM (0,0,d) e ao ponto de aplicação (0,0,b = b_cm + d)
+      supportBar.scale.set(1, b, 1);
+      supportBar.position.set(0, 0, b / 2);
+      pivotHub.position.set(0, 0, 0);
+      cmHub.position.set(0, 0, d);
       offsetLink.scale.set(1, d, 1);
       offsetLink.position.set(0, linkY, d / 2);
       axisCollar.position.set(0, linkY, 0);

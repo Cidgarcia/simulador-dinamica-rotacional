@@ -1,11 +1,15 @@
 import './style.css';
 import {
+  DISCRETE_SAMPLE_RATES,
   Experiment,
   GEOMETRIES,
   LIMITS,
   MAX_SIM_TIME,
+  NOISE_LEVELS,
   PLAYBACK_RATES,
+  TIME_INSTRUMENT_UNCERTAINTY,
   canvasRotationAngle,
+  sampleExperimentalState,
   validateParams,
 } from './physics.js';
 import { formatFixed, formatNumber, parseDecimal } from './format.js';
@@ -24,12 +28,15 @@ const DEFAULTS = {
   direction: 1,
 };
 const DECIMALS = { mass: 1, radius: 2, length: 2, axisOffset: 2, force: 2 };
-const SAMPLE_INTERVAL = 0.02; // s simulados entre amostras dos gráficos
+const SAMPLE_INTERVAL = 0.02; // s simulados entre amostras contínuas dos gráficos
 
 const ui = {
   geometry: DEFAULTS.geometry,
   direction: DEFAULTS.direction,
   rate: 1,
+  noiseEnabled: false,
+  noiseSigmaRel: 0.02,
+  sampleDt: 0.2,
   text: {
     mass: formatFixed(DEFAULTS.mass, DECIMALS.mass),
     radius: formatFixed(DEFAULTS.radius, DECIMALS.radius),
@@ -53,8 +60,11 @@ function currentParams() {
 }
 
 const experiment = new Experiment(currentParams());
-let samples = [];
+let samples = []; // histórico denso para os gráficos 2D
+let discreteSamples = []; // buffer discreto de coleta experimental para tabela e CSV
+let latestMeasuredState = null;
 let samplesDirty = true;
+let discreteDirty = true;
 
 /* ---------------- DOM ---------------- */
 
@@ -77,6 +87,10 @@ const el = {
   legendAxis: $('#legend-axis'),
   sizeLabel: $('#size-label'),
   equations: $('#equations'),
+  noiseToggle: $('#noise-toggle'),
+  noiseOptions: $('#noise-options'),
+  sampleCountBadge: $('#sample-count-badge'),
+  sampleTableBody: $('#sample-table-body'),
   outputs: Object.fromEntries([...document.querySelectorAll('[data-out]')].map((n) => [n.dataset.out, n])),
   fields: {
     mass: { input: $('#mass-input'), range: $('#mass-range'), hint: $('#mass-hint'), error: $('#mass-error') },
@@ -235,7 +249,13 @@ function showNotice(message, tone = 'info', persist = false) {
 function resetRun() {
   experiment.reset();
   samples = [];
+  discreteSamples = [];
+  latestMeasuredState = sampleExperimentalState(experiment.state, {
+    enabled: ui.noiseEnabled,
+    sigmaRel: ui.noiseSigmaRel,
+  });
   samplesDirty = true;
+  discreteDirty = true;
   aliasVisible = false;
   el.alias.hidden = true;
 }
@@ -259,6 +279,7 @@ function applyParams() {
   updateControls();
   updateReadouts();
   updateCharts();
+  updateSampleTable();
 }
 
 function bindField(field) {
@@ -324,6 +345,49 @@ function initForm() {
       updateControls();
     })
   );
+  if (el.noiseToggle) {
+    el.noiseToggle.addEventListener('change', () => {
+      ui.noiseEnabled = el.noiseToggle.checked;
+      if (el.noiseOptions) el.noiseOptions.hidden = !ui.noiseEnabled;
+      latestMeasuredState = sampleExperimentalState(experiment.state, {
+        enabled: ui.noiseEnabled,
+        sigmaRel: ui.noiseSigmaRel,
+      });
+      samplesDirty = true;
+      updateReadouts();
+      updateCharts();
+      showNotice(
+        ui.noiseEnabled
+          ? `Modo experimental ativo: ruído gaussiano de ${(ui.noiseSigmaRel * 100).toFixed(0)}% nos sensores (Box-Muller).`
+          : 'Modo determinístico ativo (sem ruído de sensor).',
+        'info'
+      );
+    });
+  }
+  document.querySelectorAll('input[name="noiseLevel"]').forEach((r) =>
+    r.addEventListener('change', () => {
+      if (!r.checked) return;
+      const v = Number(r.value);
+      ui.noiseSigmaRel = NOISE_LEVELS.includes(v) ? v : 0.02;
+      latestMeasuredState = sampleExperimentalState(experiment.state, {
+        enabled: ui.noiseEnabled,
+        sigmaRel: ui.noiseSigmaRel,
+      });
+      updateReadouts();
+      if (ui.noiseEnabled) {
+        showNotice(`Incerteza relativa do sensor ajustada para ±${(ui.noiseSigmaRel * 100).toFixed(0)}%.`, 'info');
+      }
+    })
+  );
+  document.querySelectorAll('input[name="sampleDt"]').forEach((r) =>
+    r.addEventListener('change', () => {
+      if (!r.checked) return;
+      const v = Number(r.value);
+      ui.sampleDt = DISCRETE_SAMPLE_RATES.includes(v) ? v : 0.2;
+      discreteDirty = true;
+      updateSampleTable();
+    })
+  );
   $('#params-form').addEventListener('submit', (e) => e.preventDefault());
 }
 
@@ -332,11 +396,45 @@ function initForm() {
 function pushSample(force = false) {
   const s = experiment.state;
   if (!s) return;
+  const measured = sampleExperimentalState(s, {
+    enabled: ui.noiseEnabled,
+    sigmaRel: ui.noiseSigmaRel,
+  });
+  latestMeasuredState = measured;
+
   const last = samples[samples.length - 1];
-  if (last && Math.abs(s.t - last.t) < 1e-9) return;
-  if (force || !last || s.t - last.t >= SAMPLE_INTERVAL) {
-    samples.push({ t: s.t, omega: s.omega, theta: s.theta, alpha: s.alpha });
-    samplesDirty = true;
+  if (!last || force || s.t - last.t >= SAMPLE_INTERVAL - 1e-9) {
+    if (!last || Math.abs(s.t - last.t) > 1e-9) {
+      samples.push({
+        t: s.t,
+        omega: s.omega,
+        theta: s.theta,
+        alpha: s.alpha,
+        omegaMeasured: measured.omegaMeasured,
+        thetaMeasured: measured.thetaMeasured,
+        alphaMeasured: measured.alphaMeasured,
+        kineticEnergy: s.kineticEnergy,
+        work: s.work,
+      });
+      samplesDirty = true;
+    }
+  }
+
+  const lastDisc = discreteSamples[discreteSamples.length - 1];
+  if (!lastDisc || force || s.t - lastDisc.t_s >= ui.sampleDt - 1e-6) {
+    if (!lastDisc || Math.abs(s.t - lastDisc.t_s) > 1e-6) {
+      discreteSamples.push({
+        t_s: s.t,
+        theta_teorico_rad: s.theta,
+        theta_medido_rad: measured.thetaMeasured,
+        omega_teorico_rads: s.omega,
+        omega_medido_rads: measured.omegaMeasured,
+        alfa_medido_rads2: measured.alphaMeasured,
+        energia_cinetica_J: s.kineticEnergy,
+        trabalho_J: s.work,
+      });
+      discreteDirty = true;
+    }
   }
 }
 
@@ -348,6 +446,7 @@ el.btnRun.addEventListener('click', () => {
     el.notice.classList.remove('is-visible');
   }
   updateControls();
+  updateSampleTable();
 });
 
 el.btnReset.addEventListener('click', () => {
@@ -357,15 +456,23 @@ el.btnReset.addEventListener('click', () => {
   updateControls();
   updateReadouts();
   updateCharts();
+  renderEquations();
+  updateSampleTable();
 });
 
 el.btnExportCsv.addEventListener('click', () => {
-  if (!samples.length || !experiment.dynamics) return;
+  if (!discreteSamples.length || !experiment.dynamics) return;
   const geometry = GEOMETRIES[ui.geometry].id;
-  const stamp = new Date().toISOString().slice(0, 10);
-  const csv = buildExperimentCsv({ params: experiment.params, dynamics: experiment.dynamics, samples });
-  downloadCsv(`dinamica-rotacional-${geometry}-${stamp}.csv`, csv);
-  showNotice('Dados exportados em CSV com parâmetros e unidades SI.', 'info');
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const csv = buildExperimentCsv({
+    params: experiment.params,
+    dynamics: experiment.dynamics,
+    samples: discreteSamples,
+    noiseEnabled: ui.noiseEnabled,
+    noiseSigmaRel: ui.noiseSigmaRel,
+  });
+  downloadCsv(`dados_rotacao_${geometry}_${stamp}.csv`, csv);
+  showNotice('Dados experimentais exportados em CSV com metadados comentados e unidades SI.', 'info');
 });
 
 el.btnView.addEventListener('click', () => lab?.resetView());
@@ -403,7 +510,7 @@ function updateControls() {
   }
   el.statusChip.dataset.status = status;
   el.btnReset.disabled = experiment.time === 0 && s === 'idle';
-  el.btnExportCsv.disabled = samples.length === 0 || !valid;
+  el.btnExportCsv.disabled = discreteSamples.length === 0 || !valid;
 }
 
 /* ---------------- Saídas ---------------- */
@@ -412,17 +519,43 @@ function setText(node, text) {
   if (node && node.textContent !== text) node.textContent = text;
 }
 
+function formatWithUncertainty(val, sigma, sig = 3) {
+  if (!ui.noiseEnabled || !Number.isFinite(sigma) || sigma <= 0) {
+    return formatNumber(val, 4);
+  }
+  return `${formatNumber(val, sig)} ± ${formatNumber(sigma, 2)}`;
+}
+
 function updateReadouts() {
   const s = experiment.state;
-  setText(el.clock, formatFixed(experiment.time, 2));
-  setText(el.outputs.t, formatFixed(experiment.time, 2));
+  const tStr = formatFixed(experiment.time, 2);
+  setText(el.clock, tStr);
+  setText(
+    el.outputs.t,
+    ui.noiseEnabled ? `${tStr} ± ${formatFixed(TIME_INSTRUMENT_UNCERTAINTY, 2)}` : tStr
+  );
+  setText(
+    el.outputs['t-sub'],
+    ui.noiseEnabled ? 'Base de tempo c/ incerteza instrumental' : 'Relógio determinístico'
+  );
   if (!s) {
-    ['I', 'tau', 'alpha', 'omega', 'theta'].forEach((k) => setText(el.outputs[k], '—'));
+    ['I', 'tau', 'alpha', 'omega', 'theta', 'krot', 'work'].forEach((k) => setText(el.outputs[k], '—'));
     setText(el.outputs['inertia-sub'], 'Icm = — · Md² = —');
     setText(el.outputs['torque-sub'], 'b = — m');
+    setText(el.outputs['alpha-sub'], '—');
+    setText(el.outputs['omega-sub'], '—');
     setText(el.outputs.turns, '—');
+    setText(el.outputs['krot-sub'], 'K_rot = ½ I ω²');
+    setText(el.outputs['power-sub'], 'P = — W');
     return;
   }
+
+  const m =
+    latestMeasuredState && Math.abs((latestMeasuredState.t ?? 0) - s.t) < 1e-6
+      ? latestMeasuredState
+      : sampleExperimentalState(s, { enabled: ui.noiseEnabled, sigmaRel: ui.noiseSigmaRel });
+  latestMeasuredState = m;
+
   setText(el.outputs.I, formatNumber(s.I, 4));
   setText(el.outputs['inertia-sub'], `Icm = ${formatNumber(s.Icm, 3)} · Md² = ${formatNumber(s.Id, 3)}`);
   setText(el.outputs.tau, formatNumber(s.tau, 4));
@@ -432,12 +565,30 @@ function updateReadouts() {
       ? `b = ${formatNumber(s.b, 3)} m (${formatNumber(s.bCm, 3)} + d)`
       : `b = ${formatNumber(s.b, 3)} m (d = 0)`
   );
-  setText(el.outputs.alpha, formatNumber(s.alpha, 4));
-  setText(el.outputs.omega, formatNumber(s.omega, 4));
-  setText(el.outputs.theta, formatNumber(s.theta, 4));
+
+  const alphaDisplay = ui.noiseEnabled ? m.alphaMeasured : s.alpha;
+  const omegaDisplay = ui.noiseEnabled ? m.omegaMeasured : s.omega;
+  const thetaDisplay = ui.noiseEnabled ? m.thetaMeasured : s.theta;
+
+  setText(el.outputs.alpha, formatWithUncertainty(alphaDisplay, m.sigmaAlpha, 3));
+  setText(
+    el.outputs['alpha-sub'],
+    ui.noiseEnabled ? `Teórico: ${formatNumber(s.alpha, 4)} rad/s²` : 'α = τ / I (constante)'
+  );
+  setText(el.outputs.omega, formatWithUncertainty(omegaDisplay, m.sigmaOmega, 3));
+  setText(
+    el.outputs['omega-sub'],
+    ui.noiseEnabled ? `Teórico: ${formatNumber(s.omega, 3)} rad/s` : 'ω(t) = α t'
+  );
+  setText(el.outputs.theta, formatWithUncertainty(thetaDisplay, m.sigmaTheta, 3));
   const turns = s.theta / (2 * Math.PI);
   const abs = Math.abs(turns);
   setText(el.outputs.turns, `≈ ${formatNumber(turns, 3)} ${abs > 0 && abs < 2 ? 'volta' : 'voltas'}`);
+
+  setText(el.outputs.krot, formatNumber(s.kineticEnergy, 4));
+  setText(el.outputs['krot-sub'], `K_rot = ½ I ω²`);
+  setText(el.outputs.work, formatNumber(s.work, 4));
+  setText(el.outputs['power-sub'], `P = ${formatNumber(s.power, 4)} W (τ·ω)`);
 }
 
 function eq(html) {
@@ -450,8 +601,9 @@ function eq(html) {
 function renderEquations() {
   el.equations.replaceChildren();
   const d = experiment.dynamics;
+  const s = experiment.state;
   const g = GEOMETRIES[ui.geometry];
-  if (!d) {
+  if (!d || !s) {
     el.equations.append(eq('<span class="eq-muted">Equações indisponíveis: verifique os parâmetros.</span>'));
     return;
   }
@@ -463,8 +615,57 @@ function renderEquations() {
       `<span class="eq-k">τ = (r × F)<sub>eixo</sub> = ${ui.direction > 0 ? '+' : '−'}b·F</span>, ${g.formulaB} = ${formatNumber(d.b, 4)} m ⇒ τ = <b>${formatNumber(d.tau, 4)}</b> N·m`
     ),
     eq(`<span class="eq-k">α = τ / I</span> = <b>${formatNumber(d.alpha, 4)}</b> rad/s²`),
-    eq(`<span class="eq-k">ω = α t</span> · <span class="eq-k">θ = ½ α t²</span>`)
+    eq(
+      `<span class="eq-k">K<sub>rot</sub> = ½ I ω² = W = τ θ</span> ⇒ ½·(${formatNumber(d.I, 3)})·(${formatNumber(s.omega, 3)})² = (${formatNumber(d.tau, 3)})·(${formatNumber(s.theta, 3)}) = <b data-eq-energy>${formatNumber(s.kineticEnergy, 4)}</b> J`
+    )
   );
+}
+
+function updateDynamicEquationEnergy() {
+  const s = experiment.state;
+  const d = experiment.dynamics;
+  if (!s || !d || !el.equations) return;
+  const lastEq = el.equations.lastElementChild;
+  if (!lastEq) return;
+  lastEq.innerHTML = `<span class="eq-k">K<sub>rot</sub> = ½ I ω² = W = τ θ</span> ⇒ ½·(${formatNumber(d.I, 3)})·(${formatNumber(s.omega, 3)})² = (${formatNumber(d.tau, 3)})·(${formatNumber(s.theta, 3)}) = <b>${formatNumber(s.kineticEnergy, 4)}</b> J`;
+}
+
+function updateSampleTable() {
+  if (!discreteDirty) return;
+  discreteDirty = false;
+  if (el.sampleCountBadge) {
+    el.sampleCountBadge.textContent = `${discreteSamples.length} ${discreteSamples.length === 1 ? 'amostra coletada' : 'amostras coletadas'} (Δt = ${formatFixed(ui.sampleDt, 2)} s)`;
+  }
+  if (!el.sampleTableBody) return;
+  el.sampleTableBody.replaceChildren();
+  if (discreteSamples.length === 0) {
+    const tr = document.createElement('tr');
+    tr.className = 'table-empty-row';
+    tr.innerHTML = '<td colspan="8">Nenhuma amostra registrada. Pressione <em>Iniciar</em> para coletar pares ordenados.</td>';
+    el.sampleTableBody.appendChild(tr);
+    return;
+  }
+  const frag = document.createDocumentFragment();
+  for (const row of discreteSamples) {
+    const tr = document.createElement('tr');
+    const cells = [
+      formatFixed(row.t_s, 2),
+      formatNumber(row.theta_teorico_rad, 4),
+      formatNumber(row.theta_medido_rad, 4),
+      formatNumber(row.omega_teorico_rads, 4),
+      formatNumber(row.omega_medido_rads, 4),
+      formatNumber(row.alfa_medido_rads2, 4),
+      formatNumber(row.energia_cinetica_J, 4),
+      formatNumber(row.trabalho_J, 4),
+    ];
+    for (const txt of cells) {
+      const td = document.createElement('td');
+      td.textContent = txt;
+      tr.appendChild(td);
+    }
+    frag.appendChild(tr);
+  }
+  el.sampleTableBody.appendChild(frag);
 }
 
 let aliasVisible = false;
@@ -492,9 +693,9 @@ function updateAliasHint() {
 /* ---------------- Gráficos ---------------- */
 
 const charts = [
-  { chart: createChart($('#chart-omega'), { key: 'omega', color: '#38d6f5', label: 'ω', unit: 'rad/s' }), node: $('#chart-omega') },
-  { chart: createChart($('#chart-theta'), { key: 'theta', color: '#ffb547', label: 'θ', unit: 'rad' }), node: $('#chart-theta') },
-  { chart: createChart($('#chart-alpha'), { key: 'alpha', color: '#a78bfa', label: 'α', unit: 'rad/s²' }), node: $('#chart-alpha') },
+  { chart: createChart($('#chart-omega'), { key: 'omega', measuredKey: 'omegaMeasured', color: '#38d6f5', label: 'ω', unit: 'rad/s' }), node: $('#chart-omega') },
+  { chart: createChart($('#chart-theta'), { key: 'theta', measuredKey: 'thetaMeasured', color: '#ffb547', label: 'θ', unit: 'rad' }), node: $('#chart-theta') },
+  { chart: createChart($('#chart-alpha'), { key: 'alpha', measuredKey: 'alphaMeasured', color: '#a78bfa', label: 'α', unit: 'rad/s²' }), node: $('#chart-alpha') },
 ];
 
 function updateCharts() {
@@ -502,7 +703,7 @@ function updateCharts() {
   samplesDirty = false;
   const empty = samples.length < 2;
   for (const { chart, node } of charts) {
-    chart.setSamples(samples);
+    chart.setSamples(samples, { noiseEnabled: ui.noiseEnabled });
     node.parentElement.querySelector('[data-empty]').hidden = !empty;
   }
 }
@@ -628,7 +829,7 @@ function drawComparisonBody(
   ctx.lineTo(0, cmY - radius * 0.92);
   ctx.stroke();
 
-  // Haste de deslocamento d entre o eixo fixo (0,0) e o CM (0, cmY)
+  // Haste rígida de acoplamento entre o eixo fixo (0,0), o CM (0, cmY) e o ponto de aplicação (0, cmY - radius)
   if (offsetPx > 1) {
     ctx.strokeStyle = '#4ade9a';
     ctx.lineWidth = 3;
@@ -1116,8 +1317,9 @@ function frame(now) {
   if (experiment.status === 'running') {
     experiment.advance(dt, ui.rate);
     pushSample(experiment.status === 'finished');
+    updateDynamicEquationEnergy();
+    updateControls();
     if (experiment.status === 'finished') {
-      updateControls();
       showNotice(`Limite de ${MAX_SIM_TIME} s simulados atingido. Use Reiniciar para uma nova execução.`, 'info', true);
     }
   }
@@ -1139,6 +1341,7 @@ function frame(now) {
   updateReadouts();
   updateAliasHint();
   updateCharts();
+  updateSampleTable();
   updateComparison();
   updateSteinerComparison();
   if (lab && !contextLost) {
@@ -1167,5 +1370,6 @@ resetSteinerComparison('Compare o eixo central (d = 0) com o eixo deslocado (d =
 renderEquations();
 updateControls();
 updateReadouts();
+updateSampleTable();
 startLoop();
 initScene();

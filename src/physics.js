@@ -14,6 +14,9 @@
 export const MAX_SIM_TIME = 20; // s simulados por execução
 export const MAX_FRAME_DT = 0.1; // s reais: limita saltos (aba em segundo plano etc.)
 export const PLAYBACK_RATES = [0.25, 0.5, 1];
+export const NOISE_LEVELS = [0.01, 0.02, 0.05];
+export const TIME_INSTRUMENT_UNCERTAINTY = 0.01; // ±0,01 s
+export const DISCRETE_SAMPLE_RATES = [0.2, 0.5]; // s simulados entre coletas experimentais
 
 export const DIRECTIONS = Object.freeze({ ANTI_HORARIO: 1, HORARIO: -1 });
 
@@ -208,6 +211,88 @@ export function kinematics(alpha, t) {
   return { omega: omega === 0 ? 0 : omega, theta: theta === 0 ? 0 : theta };
 }
 
+/**
+ * Grandezas energéticas rotacionais instantâneas:
+ * - Energia cinética rotacional: K_rot = ½ I ω² (J)
+ * - Trabalho do torque: W = τ Δθ (J)
+ * - Potência instantânea: P = τ ω (W)
+ */
+export function computeEnergetics(I, tau, omega, theta) {
+  const kRotRaw = 0.5 * I * omega * omega;
+  const workRaw = tau * theta;
+  const powerRaw = tau * omega;
+  return {
+    kineticEnergy: kRotRaw === 0 ? 0 : kRotRaw,
+    work: workRaw === 0 ? 0 : workRaw,
+    power: powerRaw === 0 ? 0 : powerRaw,
+  };
+}
+
+/**
+ * Gerador de variável aleatória normal padrão Z ~ N(0, 1) pela Transformada de Box-Muller:
+ * Z = sqrt(-2 ln(u1)) * cos(2π u2)
+ */
+export function boxMullerRandom(rng = Math.random) {
+  let u1 = 0;
+  let u2 = 0;
+  while (u1 <= Number.EPSILON) u1 = rng();
+  u2 = rng();
+  const z = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
+  return z === 0 ? 0 : z;
+}
+
+/**
+ * Aplica ruído gaussiano experimental às grandezas cinemáticas reais sem afetar o estado físico 3D:
+ * - ω_medido(t) = ω_real(t) + Z_ω · (σ_rel · max(|ω_real(t)|, 0.05))
+ * - θ_medido(t) = θ_real(t) + Z_θ · (σ_rel · max(|θ_real(t)|, 0.05))
+ * - α_medido(t) = α_real · (1 + Z_α · σ_rel)
+ */
+export function sampleExperimentalState(realState, { enabled = false, sigmaRel = 0.02, rng = Math.random } = {}) {
+  if (!realState) return null;
+  const { I, tau, alpha, omega, theta } = realState;
+  const sigma = enabled && isFiniteNumber(sigmaRel) && sigmaRel > 0 ? sigmaRel : 0;
+
+  const sigmaOmega = sigma * Math.max(Math.abs(omega), 0.05);
+  const sigmaTheta = sigma * Math.max(Math.abs(theta), 0.05);
+  const sigmaAlpha = Math.abs(alpha) * sigma;
+
+  if (!enabled || sigma === 0) {
+    const energetics = computeEnergetics(I, tau, omega, theta);
+    return {
+      ...realState,
+      omegaMeasured: omega,
+      thetaMeasured: theta,
+      alphaMeasured: alpha,
+      sigmaOmega: 0,
+      sigmaTheta: 0,
+      sigmaAlpha: 0,
+      sigmaTime: 0,
+      ...energetics,
+    };
+  }
+
+  const zOmega = boxMullerRandom(rng);
+  const zTheta = boxMullerRandom(rng);
+  const zAlpha = boxMullerRandom(rng);
+
+  const omegaMeasured = omega + zOmega * sigmaOmega;
+  const thetaMeasured = theta + zTheta * sigmaTheta;
+  const alphaMeasured = alpha * (1 + zAlpha * sigma);
+  const energetics = computeEnergetics(I, tau, omega, theta);
+
+  return {
+    ...realState,
+    omegaMeasured: omegaMeasured === 0 ? 0 : omegaMeasured,
+    thetaMeasured: thetaMeasured === 0 ? 0 : thetaMeasured,
+    alphaMeasured: alphaMeasured === 0 ? 0 : alphaMeasured,
+    sigmaOmega,
+    sigmaTheta,
+    sigmaAlpha,
+    sigmaTime: TIME_INSTRUMENT_UNCERTAINTY,
+    ...energetics,
+  };
+}
+
 /** Reduz θ a [0, 2π) — apenas para renderização. */
 export function wrapAngle(theta) {
   const TAU = Math.PI * 2;
@@ -279,6 +364,7 @@ export class Experiment {
   get state() {
     if (!this.dynamics) return null;
     const { omega, theta } = kinematics(this.dynamics.alpha, this.time);
-    return { t: this.time, ...this.dynamics, omega, theta };
+    const energetics = computeEnergetics(this.dynamics.I, this.dynamics.tau, omega, theta);
+    return { t: this.time, ...this.dynamics, omega, theta, ...energetics };
   }
 }
