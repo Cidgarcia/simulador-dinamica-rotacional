@@ -201,17 +201,170 @@ export function createComparisonChart(canvas, { key, label, unit, series }) {
     ctx.fillText(`${label} (${unit})`, 0, 0); ctx.restore();
 
     if (samples.length < 2) return;
+    const last = samples[samples.length - 1];
     for (const item of series) {
       ctx.strokeStyle = item.color; ctx.lineWidth = 2.2; ctx.lineJoin = 'round'; ctx.beginPath();
-      samples.forEach((sample, index) => {
-        if (index === 0) ctx.moveTo(x(sample.t), y(sample[item.key]));
-        else ctx.lineTo(x(sample.t), y(sample[item.key]));
-      });
+      let started = false;
+      for (const sample of samples) {
+        const val = sample[item.key];
+        if (!Number.isFinite(val)) continue;
+        if (!started) {
+          ctx.moveTo(x(sample.t), y(val));
+          started = true;
+        } else {
+          ctx.lineTo(x(sample.t), y(val));
+        }
+      }
       ctx.stroke();
+      if (last && Number.isFinite(last[item.key])) {
+        ctx.fillStyle = item.color;
+        ctx.beginPath();
+        ctx.arc(x(last.t), y(last[item.key]), 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
   }
 
   const observer = new ResizeObserver(resize);
   observer.observe(canvas);
   return { setSamples(next) { samples = next; draw(); }, dispose: () => observer.disconnect() };
+}
+
+/**
+ * Gráfico estático/interativo da curva quadrática do Teorema de Steiner:
+ * I(d) = Icm + M d² em função de d ∈ [0, maxD].
+ */
+export function createSteinerInertiaChart(canvas, { maxD = 1 } = {}) {
+  const ctx = canvas.getContext('2d');
+  let config = null; // { Icm, mass, d }
+  let cssW = 0;
+  let cssH = 0;
+
+  function resize() {
+    const rect = canvas.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    cssW = Math.max(rect.width, 1);
+    cssH = Math.max(rect.height, 1);
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw();
+  }
+
+  function draw() {
+    const W = cssW;
+    const H = cssH;
+    ctx.clearRect(0, 0, W, H);
+    const pad = { l: 58, r: 16, t: 14, b: 30 };
+    const pw = W - pad.l - pad.r;
+    const ph = H - pad.t - pad.b;
+    if (pw <= 10 || ph <= 10) return;
+
+    const Icm = config?.Icm ?? 0.25;
+    const mass = config?.mass ?? 2;
+    const curD = config?.d ?? 0.5;
+    const dLimit = Math.max(maxD, curD, 0.5);
+    const maxVal = Math.max(Icm + mass * dLimit * dLimit, 1e-6);
+    const step = niceStep(maxVal);
+    const min = 0;
+    const max = Math.max(Math.ceil(maxVal / step) * step, step);
+
+    const x = (dVal) => pad.l + (dVal / dLimit) * pw;
+    const y = (iVal) => pad.t + ph - ((iVal - min) / (max - min)) * ph;
+
+    ctx.font = '11px system-ui, "Segoe UI", Roboto, sans-serif';
+    ctx.lineWidth = 1;
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    for (let value = min; value <= max + step * 1e-6; value += step) {
+      const yy = Math.round(y(value)) + 0.5;
+      ctx.strokeStyle = Math.abs(value) < step * 1e-6 ? 'rgba(159,197,255,0.55)' : 'rgba(120,160,220,0.14)';
+      ctx.beginPath(); ctx.moveTo(pad.l, yy); ctx.lineTo(pad.l + pw, yy); ctx.stroke();
+      ctx.fillStyle = '#8fa9cc';
+      ctx.fillText(formatNumber(Math.abs(value) < step * 1e-6 ? 0 : value, 3), pad.l - 6, yy);
+    }
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    const dStep = dLimit <= 0.5 ? 0.1 : 0.25;
+    for (let dVal = 0; dVal <= dLimit + 1e-6; dVal += dStep) {
+      const xx = Math.round(x(dVal)) + 0.5;
+      ctx.strokeStyle = 'rgba(120,160,220,0.14)';
+      ctx.beginPath(); ctx.moveTo(xx, pad.t); ctx.lineTo(xx, pad.t + ph); ctx.stroke();
+      ctx.fillStyle = '#8fa9cc';
+      ctx.fillText(formatNumber(dVal, 2), xx, pad.t + ph + 6);
+    }
+    ctx.fillText('d (m)', pad.l - 26, pad.t + ph + 6);
+
+    ctx.save();
+    ctx.translate(12, pad.t + ph / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#b9cdea';
+    ctx.fillText('I (kg·m²)', 0, 0);
+    ctx.restore();
+
+    if (!config) return;
+
+    // Linha horizontal tracejada Icm
+    const yIcm = y(Icm);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(56, 214, 245, 0.65)';
+    ctx.lineWidth = 1.6;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(pad.l, yIcm);
+    ctx.lineTo(pad.l + pw, yIcm);
+    ctx.stroke();
+    ctx.restore();
+
+    // Curva parabólica I(d) = Icm + M d²
+    ctx.strokeStyle = '#ffb547';
+    ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    const steps = 60;
+    for (let i = 0; i <= steps; i++) {
+      const dVal = (i / steps) * dLimit;
+      const iVal = Icm + mass * dVal * dVal;
+      if (i === 0) ctx.moveTo(x(dVal), y(iVal));
+      else ctx.lineTo(x(dVal), y(iVal));
+    }
+    ctx.stroke();
+
+    // Ponto central (0, Icm)
+    ctx.fillStyle = '#38d6f5';
+    ctx.beginPath();
+    ctx.arc(x(0), yIcm, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Ponto deslocado (d, Icm + M d²)
+    const curI = Icm + mass * curD * curD;
+    const xxD = x(curD);
+    const yyI = y(curI);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255, 181, 71, 0.5)';
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(xxD, y(0));
+    ctx.lineTo(xxD, yyI);
+    ctx.lineTo(pad.l, yyI);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.fillStyle = '#ffb547';
+    ctx.beginPath();
+    ctx.arc(xxD, yyI, 5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  const observer = new ResizeObserver(resize);
+  observer.observe(canvas);
+  return {
+    setConfig(next) {
+      config = next;
+      draw();
+    },
+    dispose: () => observer.disconnect(),
+  };
 }

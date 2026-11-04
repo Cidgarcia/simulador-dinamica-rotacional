@@ -1,22 +1,23 @@
 # 🔄 Laboratório Virtual de Rotação
 
-**Simulador interativo de dinâmica de rotação e momento de inércia**
+**Simulador interativo de dinâmica de rotação, momento de inércia e Teorema dos Eixos Paralelos (Steiner)**
 
 Produto educacional desenvolvido para a disciplina **Física Experimental A**, do curso de **Engenharia de Computação da UNIVASF**.
 
-Explore como a **massa**, a **forma do corpo**, o **tamanho** e a **força aplicada** influenciam o movimento de rotação.
+Explore como a **massa**, a **forma do corpo**, o **tamanho**, a **distância do eixo de rotação ao centro de massa ($d$)** e a **força aplicada** influenciam o movimento de rotação.
 
 [🌐 Acessar o simulador](COLE_AQUI_O_LINK_DA_VERCEL) · [📋 Consultar a validação](./VALIDACAO.md)
 
 ## ✨ O que você pode fazer
 
 - Observar **disco, anel, esfera e barra** em uma cena 3D interativa.
-- Alterar massa, raio ou comprimento, força e sentido de rotação.
-- Acompanhar torque, momento de inércia e grandezas angulares.
+- Alterar massa, raio ou comprimento, distância $d$ entre o eixo de rotação e o centro de massa (Teorema de Steiner), força e sentido de rotação.
+- Acompanhar momento de inércia no centro de massa ($I_{\text{cm}}$), termo de Steiner ($Md^2$), inércia total ($I = I_{\text{cm}} + Md^2$), braço de alavanca ($b = b_{\text{cm}} + d$), torque e grandezas angulares.
 - Visualizar gráficos de **aceleração, velocidade e posição angular**.
 - Comparar **disco e anel** simultaneamente, nas mesmas condições.
-- Realizar três experimentos guiados.
-- Exportar os dados do experimento em **CSV**.
+- Comparar **eixo central ($d = 0$) e eixo deslocado ($d > 0$)** sob o **mesmo torque**, visualizando a curva quadrática $I(d) = I_{\text{cm}} + Md^2$ e a redução da aceleração angular.
+- Realizar cinco experimentos guiados.
+- Exportar os dados do experimento em **CSV** (incluindo $d$, $I_{\text{cm}}$, $Md^2$ e $I$).
 
 A aplicação executa os cálculos no próprio navegador. **Não exige cadastro nem banco de dados.** Os dados da execução são temporários; para guardá-los, exporte o CSV antes de recarregar a página.
 
@@ -25,7 +26,7 @@ A aplicação executa os cálculos no próprio navegador. **Não exige cadastro 
 **Para usar a versão publicada, basta abrir o link do site. Não é necessário instalar nada.**
 
 1. **Escolha o corpo:** disco, anel, esfera ou barra.
-2. **Ajuste os valores:** massa, tamanho, força e sentido.
+2. **Ajuste os valores:** massa, tamanho, distância $d$ do eixo ao centro de massa (`d = 0` por padrão), força e sentido.
 3. Clique em **Iniciar** para observar o movimento.
 4. Use **Pausar/Continuar** para analisar um instante e **Reiniciar** para começar novamente.
 5. Acompanhe os valores e os gráficos abaixo da simulação.
@@ -44,11 +45,15 @@ Abra a seção **Disco × anel** e inicie a comparação. Os corpos usam a mesma
 
 Observe qual ganha velocidade mais rapidamente e compare os gráficos.
 
+### Comparar eixo central e eixo deslocado (Teorema de Steiner)
+
+Abra a seção **Eixo central ($d = 0$) × eixo deslocado ($d > 0$) sob o mesmo torque**. Os dois sistemas utilizam a mesma geometria, massa, dimensão e o mesmo torque líquido $\tau$, permitindo isolar o efeito do aumento quadrático do momento de inércia ($I = I_{\text{cm}} + Md^2$) sobre a aceleração angular ($\alpha = \tau / I$).
+
 ### Salvar os dados
 
 Clique em **Exportar dados em CSV**.
 
-O arquivo reúne os parâmetros do experimento, as unidades e os valores calculados. Ele pode ser aberto em programas de planilha para análise.
+O arquivo reúne os parâmetros do experimento (incluindo $d$, $I_{\text{cm}}$, $Md^2$ e $I$), as unidades e os valores calculados. Ele pode ser aberto em programas de planilha para análise.
 
 > **Durante o uso:** alterar um parâmetro físico reinicia o experimento em zero. Cada execução dura até 20 segundos simulados. A reprodução em 0,25× ou 0,5× facilita observar o movimento.
 
@@ -56,9 +61,11 @@ O arquivo reúne os parâmetros do experimento, as unidades e os valores calcula
 
 | Experimento | O que comparar | Resultado previsto |
 |---|---|---|
-| Disco × anel | Mesma massa, raio e força | O disco tem o dobro da aceleração angular do anel. |
-| Dobrar a massa | Mesmo corpo, tamanho e força | A aceleração angular cai pela metade. |
-| Dobrar a força | Mesmo corpo, massa e tamanho | A aceleração angular dobra. |
+| 01 · Disco × anel | Mesma massa, raio, $d = 0$ e força | O disco tem o dobro da aceleração angular do anel. |
+| 02 · Dobrar a massa | Mesmo corpo, tamanho, $d = 0$ e força | A aceleração angular cai pela metade. |
+| 03 · Dobrar a força | Mesmo corpo, massa, tamanho e $d = 0$ | A aceleração angular dobra. |
+| 04 · Steiner sob mesmo torque | Mesmo corpo ($M = 2\text{ kg}, R = 0{,}5\text{ m}$) com $d = 0$ vs. $d = 0{,}5\text{ m}$ sob $\tau = 0{,}5\text{ N}\cdot\text{m}$ | $I$ sobe de $0{,}25$ para $0{,}75\text{ kg}\cdot\text{m}^2$ e $\alpha$ cai de $2$ para $\approx 0{,}667\text{ rad/s}^2$. |
+| 05 · Steiner na bancada 3D | Disco ($M = 2\text{ kg}, R = 0{,}5\text{ m}, F = 1\text{ N}$) com $d = 0{,}5\text{ m}$ | Eixo deslocado visível em 3D, $I = 0{,}75\text{ kg}\cdot\text{m}^2$, braço $b = R + d = 1{,}0\text{ m}$ e $\tau = 1{,}0\text{ N}\cdot\text{m}$. |
 
 Faça uma previsão antes de executar e depois confira os valores e as curvas.
 
@@ -67,34 +74,35 @@ Faça uma previsão antes de executar e depois confira os valores e as curvas.
 O modelo considera:
 
 - Corpos rígidos e homogêneos.
-- Eixos fixos passando pelo centro de massa.
-- Ausência de atrito.
-- Força tangencial constante acompanhando o ponto de aplicação.
+- Eixo de rotação fixo e sem atrito, paralelo ao eixo central que passa pelo centro de massa (CM), situado a uma distância $d \ge 0$ do CM.
+- Teorema dos Eixos Paralelos (Steiner): $I = I_{\text{cm}} + Md^2$.
+- Ponto de aplicação da força na borda/extremidade oposta ao deslocamento do eixo, a uma distância $b = |\vec{r}| = b_{\text{cm}} + d$ do eixo de rotação; força $\vec{F}$ sempre perpendicular ao vetor posição $\vec{r}$ relativo ao eixo ($\phi = 90^\circ$), acompanhando a trajetória circular do ponto.
 - Partida do repouso: posição e velocidade angular iniciais iguais a zero.
 
-O sentido positivo é o **anti-horário visto de cima**.
+O sentido positivo é o **anti-horário visto de cima** (lado positivo do eixo de rotação).
 
-### Momento de inércia
+### Momento de inércia e braço da força
 
-| Corpo | Eixo de rotação | Momento de inércia | Braço da força |
-|---|---|---|---|
-| Disco / cilindro maciço | Central, perpendicular ao plano | `I = MR²/2` | `b = R` |
-| Anel fino | Central, perpendicular ao plano | `I = MR²` | `b = R` |
-| Esfera maciça | Ao longo de um diâmetro | `I = 2MR²/5` | `b = R` |
-| Barra fina | Perpendicular à barra, pelo centro | `I = ML²/12` | `b = L/2` |
+| Corpo | Direção do eixo paralelo | Inércia no CM ($I_{\text{cm}}$) | Inércia total ($I = I_{\text{cm}} + Md^2$) | Braço em relação ao eixo ($b = b_{\text{cm}} + d$) |
+|---|---|---|---|---|
+| Disco / cilindro maciço | Perpendicular ao plano | `MR²/2` | `MR²/2 + Md²` | `R + d` |
+| Anel fino | Perpendicular ao plano | `MR²` | `MR² + Md²` | `R + d` |
+| Esfera maciça | Paralelo a um diâmetro | `2MR²/5` | `2MR²/5 + Md²` | `R + d` |
+| Barra fina | Perpendicular à barra | `ML²/12` | `ML²/12 + Md²` | `L/2 + d` |
 
-**Símbolos:** `M` = massa; `R` = raio; `L` = comprimento; `b` = braço da força.
+**Símbolos:** `M` = massa; `R` = raio; `L` = comprimento; `d` = distância entre o eixo de rotação e o CM; `b` = braço da força em relação ao eixo de rotação.
 
 ### Equações do movimento
 
 | Grandeza | Equação | Unidade |
 |---|---|---|
-| Torque | `τ = ±bF` | N·m |
+| Momento de inércia | `I = Icm + Md²` | kg·m² |
+| Torque no eixo | `τ = (r × F)_eixo = ±(b_cm + d)F` | N·m |
 | Aceleração angular | `α = τ/I` | rad/s² |
 | Velocidade angular | `ω = αt` | rad/s |
 | Posição angular | `θ = αt²/2` | rad |
 
-A expressão geral do módulo do torque é `|τ| = rF sen(φ)`. Como a força é tangencial, `φ = 90°`, e a expressão se reduz a `|τ| = bF`. O sinal indica o sentido de rotação.
+A expressão vetorial do torque em relação ao eixo de rotação é $\vec{\tau} = \vec{r} \times \vec{F}$, com módulo $|\tau| = rF\operatorname{sen}(\phi)$. Como a força é aplicada na borda oposta ao deslocamento do eixo ($|\vec{r}| = b = b_{\text{cm}} + d$) perpendicularmente a $\vec{r}$ ($\phi = 90^\circ$), tem-se $\tau = \pm(b_{\text{cm}} + d)F$ na bancada acionada por força. Na seção comparativa de Steiner sob torque fixo, o mesmo torque líquido $\tau$ é aplicado diretamente aos dois eixos.
 
 O simulador utiliza **soluções analíticas para aceleração constante**, avaliadas no tempo simulado. A posição angular permanece acumulada nos dados; o módulo `2π` é usado somente no desenho do objeto.
 
@@ -102,26 +110,42 @@ O simulador utiliza **soluções analíticas para aceleração constante**, aval
 
 | Parâmetro | Intervalo |
 |---|---|
-| Massa | 0,1 a 10 kg |
-| Raio | 0,05 a 0,5 m |
-| Comprimento da barra | 0,1 a 1,5 m |
-| Força | 0 a 5 N |
+| Massa $M$ | 0,1 a 10 kg |
+| Raio $R$ | 0,05 a 0,5 m |
+| Comprimento da barra $L$ | 0,1 a 1,5 m |
+| Distância do eixo ao CM $d$ | 0 a 1 m (padrão: 0 m) |
+| Força $F$ | 0 a 5 N |
+| Torque na comparação de Steiner $|\tau|$ | 0 a 10 N·m |
 
-Massa e dimensões precisam ser positivas. Força zero é permitida.
+Massa e dimensões precisam ser positivas. Distância $d = 0$ e força/torque zero são permitidos.
 
-## ✅ Caso de referência
+## ✅ Casos de referência
 
-Para conferir o modelo, considere:
+### 1. Disco × anel no eixo central ($d = 0$)
 
-**Massa = 2 kg · Raio = 0,5 m · Força = 1 N**
+**Massa = 2 kg · Raio = 0,5 m · Distância $d$ = 0 m · Força = 1 N**
 
 | Resultado | Disco | Anel |
 |---|---:|---:|
-| Momento de inércia | 0,25 kg·m² | 0,50 kg·m² |
-| Torque | 0,50 N·m | 0,50 N·m |
-| Aceleração angular | 2 rad/s² | 1 rad/s² |
-| Velocidade em 2 s | 4 rad/s | 2 rad/s |
-| Posição angular em 2 s | 4 rad | 2 rad |
+| Momento de inércia ($I = I_{\text{cm}}$) | 0,25 kg·m² | 0,50 kg·m² |
+| Torque ($\tau = RF$) | 0,50 N·m | 0,50 N·m |
+| Aceleração angular ($\alpha$) | 2 rad/s² | 1 rad/s² |
+| Velocidade em 2 s ($\omega$) | 4 rad/s | 2 rad/s |
+| Posição angular em 2 s ($\theta$) | 4 rad | 2 rad |
+
+### 2. Teorema de Steiner sob torque fixo ($\tau = 0{,}5\text{ N}\cdot\text{m}$)
+
+**Disco · Massa = 2 kg · Raio = 0,5 m · Torque fixo = 0,5 N·m**
+
+| Resultado | Eixo central ($d = 0\text{ m}$) | Eixo deslocado ($d = 0{,}5\text{ m}$) |
+|---|---:|---:|
+| Momento de inércia no CM ($I_{\text{cm}}$) | 0,25 kg·m² | 0,25 kg·m² |
+| Termo adicional de Steiner ($Md^2$) | 0 kg·m² | 0,50 kg·m² |
+| Momento de inércia total ($I$) | 0,25 kg·m² | 0,75 kg·m² |
+| Torque ($\tau$) | 0,50 N·m | 0,50 N·m |
+| Aceleração angular ($\alpha = \tau/I$) | 2 rad/s² | ≈ 0,6667 rad/s² |
+
+Na bancada 3D acionada por força constante $F = 1\text{ N}$ aplicada na borda oposta ($b = R + d$), o deslocamento $d = 0{,}5\text{ m}$ resulta em $I = 0{,}75\text{ kg}\cdot\text{m}^2$, braço $b = 1{,}0\text{ m}$, torque $\tau = 1{,}0\text{ N}\cdot\text{m}$ e $\alpha = 4/3 \approx 1{,}333\text{ rad/s}^2$.
 
 Esses valores são referências para a validação dos cálculos. A validação numérica não comprova, por si só, a eficácia pedagógica do produto.
 
@@ -201,7 +225,7 @@ Esse workflow não é executado automaticamente por push.
 
 - **JavaScript:** lógica e cálculos.
 - **Three.js:** visualização 3D.
-- **Canvas 2D:** gráficos.
+- **Canvas 2D:** gráficos e animações comparativas.
 - **Vite:** desenvolvimento e build.
 - **Vitest:** testes automatizados.
 - **HTML e CSS:** estrutura e interface responsiva.
@@ -211,21 +235,22 @@ Esse workflow não é executado automaticamente por push.
 | Arquivo ou pasta | Responsabilidade |
 |---|---|
 | `index.html` | Estrutura da página. |
-| `src/physics.js` | Modelo físico independente da interface. |
-| `src/scene.js` | Cena 3D e câmera. |
-| `src/charts.js` | Gráficos de α(t), ω(t) e θ(t). |
+| `src/physics.js` | Modelo físico independente da interface (incluindo Teorema de Steiner). |
+| `src/scene.js` | Cena 3D, representação do eixo deslocado e câmera. |
+| `src/charts.js` | Gráficos de $\alpha(t)$, $\omega(t)$, $\theta(t)$ e curva quadrática $I(d)$. |
 | `src/export.js` | Geração e download do CSV. |
 | `src/format.js` | Formatação numérica e leitura de valores. |
-| `src/main.js` | Controles, estado e animação. |
+| `src/main.js` | Controles, estado e animações. |
 | `src/style.css` | Aparência e responsividade. |
 | `tests/` | Testes automatizados. |
 | `VALIDACAO.md` | Metodologia e registros de validação. |
 
 ## ⚠️ Limitações
 
-- O modelo não inclui atrito, resistência do ar ou deformações.
-- Não contempla deslocamento do eixo pelo teorema de Steiner.
-- A visualização 3D exige WebGL; sem ele, permanece disponível a parte numérica e gráfica.
+- O modelo não inclui atrito nos mancais, resistência do ar, rolamento com contato ou deformações elásticas.
+- O deslocamento do eixo considera apenas eixos paralelos ao eixo central original ($I = I_{\text{cm}} + Md^2$), sem inclinação do eixo ou precessão giroscópica; a haste rígida de acoplamento tem massa desprezível.
+- A força e o torque são constantes em cada execução, com partida sempre do repouso ($\theta_0 = 0$, $\omega_0 = 0$) e janela máxima de 20 s simulados.
+- A visualização 3D exige WebGL; sem ele, permanecem disponíveis os cálculos numéricos, os gráficos e as comparações 2D.
 - Giros rápidos podem parecer lentos, parados ou invertidos por amostragem dos quadros. Reduza a velocidade de reprodução para facilitar a observação.
 
 Os testes automatizados verificam os cálculos e a geração do CSV. A verificação visual e dos controles deve ser registrada separadamente, conforme o ambiente efetivamente testado.

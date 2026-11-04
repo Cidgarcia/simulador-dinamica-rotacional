@@ -2,8 +2,10 @@
  * Renderização 3D do experimento. Não contém física: recebe parâmetros e o
  * ângulo θ (acumulado) e o reduz a [0, 2π) apenas para desenhar.
  *
- * O eixo físico é o eixo Y do mundo (vertical). A câmera orbita livremente,
- * mas o rotor só gira em torno desse eixo fixo.
+ * O eixo físico de rotação é o eixo Y do mundo (vertical, em x = 0, z = 0).
+ * Quando d > 0 (Teorema de Steiner), o centro de massa (CM) do corpo fica
+ * deslocado em (0, 0, d) no referencial do rotor, orbitando em torno do eixo
+ * fixo paralelamente ao eixo central do corpo.
  */
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -14,14 +16,15 @@ export const COLORS = {
   stripe: 0xcfe8ff,
   mark: 0xffc23d,
   axis: 0xc9d4e3,
+  cm: 0x4ade9a,
   force: 0xff6a3d,
   torque: 0x29d3f0,
   floor: 0x0b1a33,
 };
 
 const ROTOR_Y = 0.6;
-const INITIAL_CAMERA = new THREE.Vector3(1.35, 1.25, 1.65);
-const INITIAL_TARGET = new THREE.Vector3(0, 0.5, 0);
+const INITIAL_CAMERA = new THREE.Vector3(1.65, 1.5, 2.0);
+const INITIAL_TARGET = new THREE.Vector3(-0.08, 0.48, 0.18);
 
 export function isWebGLAvailable() {
   try {
@@ -147,7 +150,7 @@ export function createLabScene(container) {
   controls.enableDamping = true;
   controls.dampingFactor = 0.08;
   controls.minDistance = 0.7;
-  controls.maxDistance = 5;
+  controls.maxDistance = 6;
   controls.maxPolarAngle = Math.PI * 0.49; // não atravessa o piso
   controls.listenToKeyEvents(canvas);
   controls.update();
@@ -158,10 +161,10 @@ export function createLabScene(container) {
   key.position.set(2.2, 3.4, 1.6);
   key.castShadow = true;
   key.shadow.mapSize.set(1024, 1024);
-  key.shadow.camera.left = key.shadow.camera.bottom = -1.4;
-  key.shadow.camera.right = key.shadow.camera.top = 1.4;
+  key.shadow.camera.left = key.shadow.camera.bottom = -2.4;
+  key.shadow.camera.right = key.shadow.camera.top = 2.4;
   key.shadow.camera.near = 0.5;
-  key.shadow.camera.far = 8;
+  key.shadow.camera.far = 9;
   key.shadow.bias = -0.0005;
   key.shadow.normalBias = 0.02;
   scene.add(key);
@@ -171,13 +174,13 @@ export function createLabScene(container) {
 
   // Piso e grade (células de 10 cm)
   const floor = new THREE.Mesh(
-    new THREE.CircleGeometry(4, 64),
+    new THREE.CircleGeometry(4.5, 64),
     new THREE.MeshStandardMaterial({ color: COLORS.floor, roughness: 0.95 })
   );
   floor.rotation.x = -Math.PI / 2;
   floor.receiveShadow = true;
   scene.add(floor);
-  const grid = new THREE.GridHelper(4, 40, 0x2a5a8f, 0x173457);
+  const grid = new THREE.GridHelper(4.4, 44, 0x2a5a8f, 0x173457);
   grid.position.y = 0.001;
   grid.material.transparent = true;
   grid.material.opacity = 0.55;
@@ -196,7 +199,7 @@ export function createLabScene(container) {
   axisCap.position.y = ROTOR_Y + 0.4;
   scene.add(base, axisRod, axisCap);
 
-  // Indicador do sentido do torque (fixo, acima do corpo)
+  // Indicador do sentido do torque (fixo, acima do eixo de rotação)
   const torqueGroup = new THREE.Group();
   const torqueMat = new THREE.MeshStandardMaterial({
     color: COLORS.torque,
@@ -219,12 +222,35 @@ export function createLabScene(container) {
   torqueGroup.position.y = ROTOR_Y + 0.3;
   scene.add(torqueGroup);
 
-  // Rotor: tudo que gira junto com o corpo
+  // Rotor: tudo que gira junto com o corpo em torno do eixo fixo (0, ROTOR_Y, 0)
   const rotor = new THREE.Group();
   rotor.position.y = ROTOR_Y;
   scene.add(rotor);
   const bodyGroup = new THREE.Group();
   rotor.add(bodyGroup);
+
+  // Elementos visuais do Teorema de Steiner (eixo paralelo no CM e haste de distância d)
+  const cmMat = new THREE.MeshStandardMaterial({
+    color: COLORS.cm,
+    emissive: COLORS.cm,
+    emissiveIntensity: 0.45,
+    roughness: 0.35,
+  });
+  const steinerGroup = new THREE.Group();
+  // Haste estrutural de acoplamento entre o eixo de rotação (0,0,0) e o CM (0,0,d)
+  const supportBar = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 1, 16), darkMetal);
+  supportBar.rotation.x = Math.PI / 2;
+  supportBar.castShadow = true;
+  // Indicador superior da distância d entre o eixo fixo e o eixo do CM
+  const offsetLink = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 1, 16), cmMat);
+  offsetLink.rotation.x = Math.PI / 2;
+  // Pino vertical indicando o eixo paralelo que passa pelo Centro de Massa (CM)
+  const cmAxisPin = new THREE.Mesh(new THREE.CylinderGeometry(0.0055, 0.0055, 0.32, 16), cmMat);
+  const cmCap = new THREE.Mesh(new THREE.SphereGeometry(0.015, 18, 12), cmMat);
+  const axisCollar = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.018, 20), cmMat);
+  steinerGroup.add(supportBar, offsetLink, cmAxisPin, cmCap, axisCollar);
+  steinerGroup.visible = false;
+  rotor.add(steinerGroup);
 
   const forceArrow = makeArrow(COLORS.force);
   const forcePoint = new THREE.Mesh(
@@ -297,14 +323,36 @@ export function createLabScene(container) {
 
   let current = { geometry: null, size: null };
 
-  /** Atualiza geometria, ponto de aplicação e setas. */
-  function setParams({ geometry, size, force, direction, arm }) {
+  /** Atualiza geometria, deslocamento d do eixo (Steiner), ponto de aplicação e setas. */
+  function setParams({ geometry, size, force, direction, arm, axisOffset = 0 }) {
     if (current.geometry !== geometry || current.size !== size) {
       buildBody(geometry, size);
       current = { geometry, size };
     }
+    const d = Number.isFinite(axisOffset) && axisOffset > 0 ? axisOffset : 0;
     const b = arm;
-    // Ponto de aplicação em (0, 0, b): de frente para a câmera inicial.
+    const top = geometry === 'esfera' ? size : geometry === 'disco' ? 0.025 : 0.02;
+
+    // Desloca o Centro de Massa (CM) do corpo em +Z por d em relação ao eixo fixo de rotação (0,0,0)
+    bodyGroup.position.set(0, 0, d);
+
+    if (d > 0) {
+      const linkY = top + 0.035;
+      supportBar.scale.set(1, d, 1);
+      supportBar.position.set(0, 0, d / 2);
+      offsetLink.scale.set(1, d, 1);
+      offsetLink.position.set(0, linkY, d / 2);
+      axisCollar.position.set(0, linkY, 0);
+      const pinHeight = top * 2 + 0.14;
+      cmAxisPin.scale.set(1, pinHeight / 0.32, 1);
+      cmAxisPin.position.set(0, 0.02, d);
+      cmCap.position.set(0, top + 0.09, d);
+      steinerGroup.visible = true;
+    } else {
+      steinerGroup.visible = false;
+    }
+
+    // Ponto de aplicação em (0, 0, b), onde b = b_cm + d é a distância ao eixo de rotação.
     forcePoint.position.set(0, 0, b);
     // tangente em (0,0,b): ω×r com ω = +Y dá +X → anti-horário (vista de cima) = +X
     const dir = new THREE.Vector3(direction, 0, 0);
@@ -314,7 +362,6 @@ export function createLabScene(container) {
     forceArrow.visible = force > 0;
     torqueGroup.visible = force > 0;
     torqueGroup.scale.z = direction; // espelha o arco para sentido horário
-    const top = geometry === 'esfera' ? size : geometry === 'disco' ? 0.025 : 0.02;
     torqueGroup.position.y = ROTOR_Y + top + 0.12;
   }
 

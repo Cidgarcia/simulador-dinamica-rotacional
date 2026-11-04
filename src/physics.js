@@ -1,9 +1,12 @@
 /**
  * Modelo físico do laboratório — independente de renderização.
  *
- * Hipóteses: corpos rígidos e homogêneos, eixo fixo sem atrito, força
- * tangencial de módulo constante que acompanha o ponto de aplicação, com
- * braço (raio de aplicação) constante. Condições iniciais θ0 = 0, ω0 = 0.
+ * Hipóteses: corpos rígidos e homogêneos, eixo fixo sem atrito (no centro de
+ * massa ou deslocado paralelamente de d pelo Teorema de Steiner: I = Icm + Md²),
+ * força tangencial de módulo constante aplicada na borda/extremidade oposta ao
+ * deslocamento do eixo (vetor posição r de módulo b = b_cm + d a partir do eixo
+ * de rotação, perpendicular a F: τ = (r × F)_eixo = ±(b_cm + d)F).
+ * Condições iniciais θ0 = 0, ω0 = 0.
  *
  * Convenção de sinal: positivo = anti-horário visto de cima (+eixo).
  */
@@ -19,7 +22,9 @@ export const LIMITS = Object.freeze({
   mass: { min: 0.1, max: 10, step: 0.1 },
   radius: { min: 0.05, max: 0.5, step: 0.01 },
   length: { min: 0.1, max: 1.5, step: 0.01 },
+  axisOffset: { min: 0, max: 1, step: 0.01 },
   force: { min: 0, max: 5, step: 0.05 },
+  torque: { min: 0, max: 10, step: 0.05 },
 });
 
 export const GEOMETRIES = Object.freeze({
@@ -27,9 +32,11 @@ export const GEOMETRIES = Object.freeze({
     id: 'disco',
     nome: 'Disco / cilindro maciço',
     dimensao: 'radius',
-    eixo: 'Eixo central, perpendicular ao plano do disco',
-    formulaI: 'I = ½ M R²',
-    formulaB: 'b = R',
+    eixo: 'Eixo perpendicular ao plano do disco (paralelo ao eixo central)',
+    formulaI: 'I = ½ M R² + M d²',
+    formulaIcm: 'Icm = ½ M R²',
+    formulaB: 'b = R + d',
+    formulaBCm: 'b_cm = R',
     inertia: (M, R) => (M * R * R) / 2,
     arm: (R) => R,
   },
@@ -37,9 +44,11 @@ export const GEOMETRIES = Object.freeze({
     id: 'anel',
     nome: 'Anel fino',
     dimensao: 'radius',
-    eixo: 'Eixo central, perpendicular ao plano do anel',
-    formulaI: 'I = M R²',
-    formulaB: 'b = R',
+    eixo: 'Eixo perpendicular ao plano do anel (paralelo ao eixo central)',
+    formulaI: 'I = M R² + M d²',
+    formulaIcm: 'Icm = M R²',
+    formulaB: 'b = R + d',
+    formulaBCm: 'b_cm = R',
     inertia: (M, R) => M * R * R,
     arm: (R) => R,
   },
@@ -47,9 +56,11 @@ export const GEOMETRIES = Object.freeze({
     id: 'esfera',
     nome: 'Esfera maciça',
     dimensao: 'radius',
-    eixo: 'Eixo ao longo de um diâmetro',
-    formulaI: 'I = ⅖ M R²',
-    formulaB: 'b = R',
+    eixo: 'Eixo paralelo a um diâmetro',
+    formulaI: 'I = ⅖ M R² + M d²',
+    formulaIcm: 'Icm = ⅖ M R²',
+    formulaB: 'b = R + d',
+    formulaBCm: 'b_cm = R',
     inertia: (M, R) => (2 * M * R * R) / 5,
     arm: (R) => R,
   },
@@ -57,9 +68,11 @@ export const GEOMETRIES = Object.freeze({
     id: 'barra',
     nome: 'Barra fina',
     dimensao: 'length',
-    eixo: 'Eixo perpendicular à barra, passando pelo centro',
-    formulaI: 'I = (1/12) M L²',
-    formulaB: 'b = L/2',
+    eixo: 'Eixo perpendicular à barra (paralelo ao eixo central)',
+    formulaI: 'I = (1/12) M L² + M d²',
+    formulaIcm: 'Icm = (1/12) M L²',
+    formulaB: 'b = L/2 + d',
+    formulaBCm: 'b_cm = L/2',
     inertia: (M, L) => (M * L * L) / 12,
     arm: (L) => L / 2,
   },
@@ -67,27 +80,47 @@ export const GEOMETRIES = Object.freeze({
 
 const isFiniteNumber = (v) => typeof v === 'number' && Number.isFinite(v);
 
-/** Momento de inércia (kg·m²). `size` é R para corpos circulares e L para a barra. */
-export function momentOfInertia(geometry, mass, size) {
+/** Momento de inércia no centro de massa Icm (kg·m²). */
+export function centerOfMassInertia(geometry, mass, size) {
   const g = GEOMETRIES[geometry];
   if (!g) throw new Error(`Geometria desconhecida: ${geometry}`);
   return g.inertia(mass, size);
 }
 
-/** Braço da força (m). */
-export function leverArm(geometry, size) {
+/** Termo adicional do Teorema de Steiner Md² (kg·m²). */
+export function steinerTerm(mass, axisOffset = 0) {
+  const val = mass * axisOffset * axisOffset;
+  return val === 0 ? 0 : val;
+}
+
+/**
+ * Momento de inércia total pelo Teorema dos Eixos Paralelos de Steiner:
+ * I = Icm + M d² (kg·m²). `size` é R para corpos circulares e L para a barra.
+ */
+export function momentOfInertia(geometry, mass, size, axisOffset = 0) {
+  const Icm = centerOfMassInertia(geometry, mass, size);
+  return Icm + steinerTerm(mass, axisOffset);
+}
+
+/**
+ * Braço da força b = |r| em relação ao eixo de rotação (m).
+ * O eixo está à distância d do CM e o ponto de aplicação está na borda/extremidade
+ * oposta (a b_cm do CM), logo |r| = b_cm + d.
+ */
+export function leverArm(geometry, size, axisOffset = 0) {
   const g = GEOMETRIES[geometry];
   if (!g) throw new Error(`Geometria desconhecida: ${geometry}`);
-  return g.arm(size);
+  return g.arm(size) + axisOffset;
 }
 
 /**
  * Valida parâmetros. Retorna { valid, errors } com errors indexado pelo campo.
- * params: { geometry, mass, size, force, direction }
+ * params: { geometry, mass, size, force, direction, axisOffset?, torqueOverride? }
  */
 export function validateParams(params) {
   const errors = {};
-  const { geometry, mass, size, force, direction } = params ?? {};
+  const { geometry, mass, size, force, direction, torqueOverride } = params ?? {};
+  const axisOffset = params?.axisOffset === undefined ? 0 : params.axisOffset;
 
   if (!GEOMETRIES[geometry]) errors.geometry = 'Selecione uma geometria válida.';
 
@@ -106,7 +139,19 @@ export function validateParams(params) {
     errors.size = `${dimName} deve estar entre ${lim.min} e ${lim.max} m.`;
   }
 
-  if (!isFiniteNumber(force) || force < 0) {
+  if (!isFiniteNumber(axisOffset) || axisOffset < 0) {
+    errors.axisOffset = 'A distância d deve ser um número maior ou igual a zero.';
+  } else if (axisOffset > LIMITS.axisOffset.max) {
+    errors.axisOffset = `Use uma distância d entre 0 e ${LIMITS.axisOffset.max} m.`;
+  }
+
+  if (torqueOverride !== undefined && torqueOverride !== null) {
+    if (!isFiniteNumber(torqueOverride) || torqueOverride < 0) {
+      errors.torque = 'O módulo do torque deve ser um número maior ou igual a zero.';
+    } else if (torqueOverride > LIMITS.torque.max) {
+      errors.torque = `Use um torque entre 0 e ${LIMITS.torque.max} N·m.`;
+    }
+  } else if (!isFiniteNumber(force) || force < 0) {
     errors.force = 'A força deve ser um número maior ou igual a zero.';
   } else if (force > LIMITS.force.max) {
     errors.force = `Use uma força entre 0 e ${LIMITS.force.max} N.`;
@@ -117,13 +162,43 @@ export function validateParams(params) {
   return { valid: Object.keys(errors).length === 0, errors };
 }
 
-/** Grandezas constantes da execução: I, b, τ (assinado), α. */
-export function computeDynamics({ geometry, mass, size, force, direction }) {
-  const I = momentOfInertia(geometry, mass, size);
-  const b = leverArm(geometry, size);
-  const tau = b * force * direction;
+/**
+ * Grandezas constantes da execução:
+ * Icm, Id (Md²), I = Icm + Md², bCm, b = bCm + d, τ (assinado no eixo de rotação), α = τ/I.
+ */
+export function computeDynamics({
+  geometry,
+  mass,
+  size,
+  force = 0,
+  direction,
+  axisOffset = 0,
+  torqueOverride = null,
+}) {
+  const g = GEOMETRIES[geometry];
+  if (!g) throw new Error(`Geometria desconhecida: ${geometry}`);
+  const d = axisOffset === 0 ? 0 : axisOffset;
+  const Icm = centerOfMassInertia(geometry, mass, size);
+  const Id = steinerTerm(mass, d);
+  const I = Icm + Id;
+  const bCm = g.arm(size);
+  const b = leverArm(geometry, size, d);
+  const rawTau =
+    torqueOverride !== null && torqueOverride !== undefined
+      ? torqueOverride * direction
+      : b * force * direction;
+  const tau = rawTau === 0 ? 0 : rawTau;
   const alpha = tau / I;
-  return { I, b, tau, alpha: alpha === 0 ? 0 : alpha };
+  return {
+    I,
+    Icm,
+    Id,
+    axisOffset: d,
+    bCm,
+    b,
+    tau,
+    alpha: alpha === 0 ? 0 : alpha,
+  };
 }
 
 /** Cinemática com aceleração constante a partir do repouso (θ acumulado, sem módulo). */
@@ -141,6 +216,17 @@ export function wrapAngle(theta) {
 }
 
 /**
+ * Converte o ângulo físico θ (positivo = anti-horário visto do lado + do eixo)
+ * para o ângulo de rotação do Canvas 2D (onde o eixo +Y aponta para baixo e
+ * ctx.rotate positivo gira no sentido horário).
+ */
+export function canvasRotationAngle(theta) {
+  if (!isFiniteNumber(theta)) return 0;
+  const wrapped = wrapAngle(theta);
+  return wrapped === 0 ? 0 : -wrapped;
+}
+
+/**
  * Estado de uma execução do experimento. O tempo simulado avança apenas por
  * `advance(realDt, rate)`, independentemente da taxa de quadros.
  * status: 'idle' | 'running' | 'paused' | 'finished'
@@ -151,7 +237,7 @@ export class Experiment {
   }
 
   setParams(params) {
-    this.params = { ...params };
+    this.params = { axisOffset: 0, ...params };
     this.validation = validateParams(this.params);
     this.dynamics = this.validation.valid ? computeDynamics(this.params) : null;
     this.reset();
