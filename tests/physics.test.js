@@ -323,5 +323,10 @@ describe("conservação de energia e incerteza experimental (Box-Muller)", () =>
     expect(noisy.omegaMeasured).toBeCloseTo(real.omega + expectedSigmaOmega, 12);
     expect(noisy.thetaMeasured).toBeCloseTo(real.theta + expectedSigmaTheta, 12);
     expect(noisy.alphaMeasured).toBeCloseTo(real.alpha * (1 + 0.02), 12);
+    expect(noisy.kineticEnergyMeasured).toBeCloseTo(
+      0.5 * real.I * noisy.omegaMeasured * noisy.omegaMeasured,
+      12
+    );
+    expect(noisy.sigmaKineticEnergy).toBeCloseTo(real.I * Math.abs(real.omega) * expectedSigmaOmega, 12);
   });
 });

@@ -10,14 +10,13 @@ Explore como a **massa**, a **forma do corpo**, o **tamanho**, a **distância do
 
 ## ✨ O que você pode fazer
 
-- Observar **disco, anel, esfera e barra** em uma cena 3D interativa.
+- Observar **disco, anel, esfera e barra** em uma cena 3D interativa com acoplamento mecânico realista para eixos deslocados ($d > 0$).
 - Alterar massa, raio ou comprimento, distância $d$ entre o eixo de rotação e o centro de massa (Teorema de Steiner), força e sentido de rotação.
-- Acompanhar momento de inércia no centro de massa ($I_{\text{cm}}$), termo de Steiner ($Md^2$), inércia total ($I = I_{\text{cm}} + Md^2$), braço de alavanca ($b = b_{\text{cm}} + d$), torque e grandezas angulares.
-- Visualizar gráficos de **aceleração, velocidade e posição angular**.
-- Comparar **disco e anel** simultaneamente, nas mesmas condições.
-- Comparar **eixo central ($d = 0$) e eixo deslocado ($d > 0$)** sob o **mesmo torque**, visualizando a curva quadrática $I(d) = I_{\text{cm}} + Md^2$ e a redução da aceleração angular.
-- Realizar cinco experimentos guiados.
-- Exportar os dados do experimento em **CSV** (incluindo $d$, $I_{\text{cm}}$, $Md^2$ e $I$).
+- Acompanhar momento de inércia no centro de massa ($I_{\text{cm}}$), termo de Steiner ($Md^2$), inércia total ($I = I_{\text{cm}} + Md^2$), braço de alavanca ($b = b_{\text{cm}} + d$), torque ($\tau$), grandezas angulares ($\alpha, \omega, \theta$), **Energia Cinética Rotacional ($K_{\text{rot}}$)**, **Trabalho do Torque ($W$)** e **Potência Instantânea ($P$)** com resolução instrumental padronizada (ABNT/Metrologia).
+- Ativar o modo **"Simular incerteza experimental (ruído de sensor)"** com ruído gaussiano via **Transformada de Box-Muller** ($\sigma_{\text{rel}} \in \{1\%, 2\%, 5\%\}$) e incerteza instrumental de tempo ($\pm 0{,}01\text{ s}$).
+- Visualizar gráficos de **aceleração, velocidade e posição angular** com dispersão experimental sobreposta à curva teórica tracejada.
+- Comparar **disco e anel** simultaneamente e **eixo central ($d = 0$) × eixo deslocado ($d > 0$)** sob o **mesmo torque**, incluindo a evolução comparativa de $K_{\text{rot}}$ e $W$.
+- Coletar dados amostrados ($\Delta t = 0{,}20\text{ s}$ ou $0{,}50\text{ s}$) em tabela interativa e exportar em **CSV** (em modo completo ou **Modo Cego para Relatório**, contendo apenas leituras brutas de sensor para linearização em SciDAVis, Origin, Python ou Excel).
 
 A aplicação executa os cálculos no próprio navegador. **Não exige cadastro nem banco de dados.** Os dados da execução são temporários; para guardá-los, exporte o CSV antes de recarregar a página.
 
@@ -92,7 +91,7 @@ O sentido positivo é o **anti-horário visto de cima** (lado positivo do eixo d
 
 **Símbolos:** `M` = massa; `R` = raio; `L` = comprimento; `d` = distância entre o eixo de rotação e o CM; `b` = braço da força em relação ao eixo de rotação.
 
-### Equações do movimento
+### Equações do movimento e conservação de energia
 
 | Grandeza | Equação | Unidade |
 |---|---|---|
@@ -101,10 +100,45 @@ O sentido positivo é o **anti-horário visto de cima** (lado positivo do eixo d
 | Aceleração angular | `α = τ/I` | rad/s² |
 | Velocidade angular | `ω = αt` | rad/s |
 | Posição angular | `θ = αt²/2` | rad |
+| Energia cinética rotacional | `K_rot = ½ I ω²` | J |
+| Trabalho do torque | `W = τ Δθ = ΔK_rot` | J |
+| Potência instantânea | `P = dW/dt = τ ω` | W |
 
-A expressão vetorial do torque em relação ao eixo de rotação é $\vec{\tau} = \vec{r} \times \vec{F}$, com módulo $|\tau| = rF\operatorname{sen}(\phi)$. Como a força é aplicada na borda oposta ao deslocamento do eixo ($|\vec{r}| = b = b_{\text{cm}} + d$) perpendicularmente a $\vec{r}$ ($\phi = 90^\circ$), tem-se $\tau = \pm(b_{\text{cm}} + d)F$ na bancada acionada por força. Na seção comparativa de Steiner sob torque fixo, o mesmo torque líquido $\tau$ é aplicado diretamente aos dois eixos.
+### Equivalência Mecânica do Atuador Tangencial
 
-O simulador utiliza **soluções analíticas para aceleração constante**, avaliadas no tempo simulado. A posição angular permanece acumulada nos dados; o módulo `2π` é usado somente no desenho do objeto.
+A expressão vetorial do torque em relação ao eixo de rotação é $\vec{\tau} = \vec{r} \times \vec{F}$, com módulo $|\tau| = rF\operatorname{sen}(\phi)$. No simulador, a força tangencial contínua de módulo constante $\vec{F} \perp \vec{r}$ mantém $\phi = 90^\circ$ ao longo de múltiplas revoluções com braço efetivo $b = b_{\text{cm}} + d$. Fisicamente, esse vínculo representa um **atuador tangencial ideal solidário à borda** — ou o equivalente dinâmico exato de um sistema de **fio inextensível tracionado em tambor cilíndrico concêntrico de raio efetivo $b = b_{\text{cm}} + d$ acoplado rigidamente ao sistema sem massa adicional**.
+
+Quando o eixo é deslocado ($d > 0$, inclusive para $d > R$ onde o eixo de rotação situa-se fora do corpo), uma haste rígida de massa desprezível conecta estruturalmente o eixo fixo $(0,0,0)$ ao centro de massa $(0,0,d)$ e ao ponto de aplicação da força $(0,0,b)$.
+
+Sob o mesmo torque líquido $\tau$ aplicado durante um mesmo intervalo de tempo $t$, um corpo de **menor momento de inércia $I$** adquire maior aceleração angular ($\alpha = \tau/I$), percorre um deslocamento angular maior ($\theta = \frac{\tau t^2}{2I}$) e, consequentemente, recebe **maior trabalho ($W = \tau \theta$)** e acumula **maior energia cinética rotacional ($K_{\text{rot}} = \frac{\tau^2 t^2}{2I}$)** — propriedade demonstrada em tempo real nos Experimentos Comparativos 1 e 2.
+
+---
+
+## 📊 Modelagem de Incerteza Estocástica e Exportação de Dados
+
+### 1. Ruído Gaussiano via Transformada de Box-Muller
+
+Para reproduzir a flutuação estatística real de sensores ópticos (*photogates*) e encoders rotativos sem introduzir tremores visuais na malha 3D, a arquitetura separa estritamente o **estado físico determinístico** ($\theta_{\text{real}}, \omega_{\text{real}}, \alpha_{\text{real}}$) da **leitura experimental amostrada** ($\theta_{\text{med}}, \omega_{\text{med}}, \alpha_{\text{med}}$).
+
+A cada instante amostrado, variáveis normais padrão independentes $Z \sim \mathcal{N}(0, 1)$ são geradas pela **Transformada de Box-Muller**:
+
+$$Z = \sqrt{-2 \ln(u_1)} \cos(2\pi u_2), \quad u_1, u_2 \sim \mathcal{U}(0, 1)$$
+
+As leituras experimentais e a energia cinética medida são calculadas com propagação coerente de incertezas ($\sigma_{\text{rel}} \in \{1\%, 2\%, 5\%\}$ e incerteza instrumental de tempo $\sigma_t = \pm 0{,}01\text{ s}$):
+
+- $\omega_{\text{med}}(t) = \omega_{\text{real}}(t) + Z_\omega \cdot \sigma_\omega$, onde $\sigma_\omega = \sigma_{\text{rel}} \cdot \max(|\omega_{\text{real}}(t)|, 0{,}05)$
+- $\theta_{\text{med}}(t) = \theta_{\text{real}}(t) + Z_\theta \cdot \sigma_\theta$, onde $\sigma_\theta = \sigma_{\text{rel}} \cdot \max(|\theta_{\text{real}}(t)|, 0{,}05)$
+- $\alpha_{\text{med}}(t) = \alpha_{\text{real}} \cdot (1 + Z_\alpha \cdot \sigma_{\text{rel}})$, onde $\sigma_\alpha = |\alpha_{\text{real}}| \cdot \sigma_{\text{rel}}$
+- $K_{\text{rot,med}}(t) = \frac{1}{2} I \omega_{\text{med}}^2(t)$, com incerteza propagada $\sigma_K = I |\omega_{\text{real}}| \sigma_\omega$
+
+### 2. Formato de Exportação CSV e Modo Cego para Relatório
+
+O buffer de amostragem discreta registra pares ordenados a cada $\Delta t = 0{,}20\text{ s}$ ou $0{,}50\text{ s}$ simulados. O arquivo `.csv` (`dados_rotacao_<corpo>_<timestamp>.csv`) inclui cabeçalho comentado com `#` (compatível com `numpy.loadtxt`, `pandas.read_csv(comment='#', sep=';')`, **SciDAVis** e **Origin**) seguido pelas colunas separadas por `;`:
+
+- **Modo Completo (padrão):**
+  `t_s;theta_teorico_rad;theta_medido_rad;omega_teorico_rads;omega_medido_rads;alfa_medido_rads2;energia_cinetica_J;trabalho_J`
+- **Modo Cego para Relatório (`Ocultar valores teóricos na tabela/CSV`):**
+  Exporta apenas as grandezas lidas pelo sensor (`t_s;theta_medido_rad;omega_medido_rads;alfa_medido_rads2;energia_cinetica_medida_J`), permitindo que o estudante realize de forma autônoma a regressão linear de $\omega \times t$ e a linearização da parábola $\theta \times t^2$.
 
 ### Limites dos controles
 

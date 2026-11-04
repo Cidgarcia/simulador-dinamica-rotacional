@@ -255,17 +255,21 @@ export function sampleExperimentalState(realState, { enabled = false, sigmaRel =
   const sigmaOmega = sigma * Math.max(Math.abs(omega), 0.05);
   const sigmaTheta = sigma * Math.max(Math.abs(theta), 0.05);
   const sigmaAlpha = Math.abs(alpha) * sigma;
+  const energetics = computeEnergetics(I, tau, omega, theta);
 
   if (!enabled || sigma === 0) {
-    const energetics = computeEnergetics(I, tau, omega, theta);
     return {
       ...realState,
       omegaMeasured: omega,
       thetaMeasured: theta,
       alphaMeasured: alpha,
+      kineticEnergyMeasured: energetics.kineticEnergy,
+      workMeasured: energetics.work,
       sigmaOmega: 0,
       sigmaTheta: 0,
       sigmaAlpha: 0,
+      sigmaKineticEnergy: 0,
+      sigmaWork: 0,
       sigmaTime: 0,
       ...energetics,
     };
@@ -278,16 +282,24 @@ export function sampleExperimentalState(realState, { enabled = false, sigmaRel =
   const omegaMeasured = omega + zOmega * sigmaOmega;
   const thetaMeasured = theta + zTheta * sigmaTheta;
   const alphaMeasured = alpha * (1 + zAlpha * sigma);
-  const energetics = computeEnergetics(I, tau, omega, theta);
+
+  const kRotMedRaw = 0.5 * I * omegaMeasured * omegaMeasured;
+  const workMedRaw = tau * thetaMeasured;
+  const sigmaKineticEnergy = I * Math.abs(omega) * sigmaOmega;
+  const sigmaWork = Math.abs(tau) * sigmaTheta;
 
   return {
     ...realState,
     omegaMeasured: omegaMeasured === 0 ? 0 : omegaMeasured,
     thetaMeasured: thetaMeasured === 0 ? 0 : thetaMeasured,
     alphaMeasured: alphaMeasured === 0 ? 0 : alphaMeasured,
+    kineticEnergyMeasured: kRotMedRaw === 0 ? 0 : kRotMedRaw,
+    workMeasured: workMedRaw === 0 ? 0 : workMedRaw,
     sigmaOmega,
     sigmaTheta,
     sigmaAlpha,
+    sigmaKineticEnergy: sigmaKineticEnergy === 0 ? 0 : sigmaKineticEnergy,
+    sigmaWork: sigmaWork === 0 ? 0 : sigmaWork,
     sigmaTime: TIME_INSTRUMENT_UNCERTAINTY,
     ...energetics,
   };

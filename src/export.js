@@ -8,8 +8,12 @@ function csvCell(value) {
 
 /**
  * Produz um CSV com cabeçalho de metadados comentados (# Corpo, # M, # R/L, # d, # I, # F, # Ruido (%))
- * e as amostras discretas de coleta experimental (t_s, theta_teorico_rad, theta_medido_rad,
- * omega_teorico_rads, omega_medido_rads, alfa_medido_rads2, energia_cinetica_J, trabalho_J).
+ * e as amostras discretas de coleta experimental.
+ * - Modo completo (blindMode = false): t_s, theta_teorico_rad, theta_medido_rad,
+ *   omega_teorico_rads, omega_medido_rads, alfa_medido_rads2, energia_cinetica_J, trabalho_J.
+ * - Modo Cego para Relatório (blindMode = true): exporta APENAS os dados brutos que um sensor
+ *   real leria (t_s, theta_medido_rad, omega_medido_rads, alfa_medido_rads2, energia_cinetica_medida_J),
+ *   ocultando as previsões analíticas no cabeçalho e nas colunas.
  * O separador ; evita conflito com a vírgula decimal do Excel pt-BR.
  */
 export function buildExperimentCsv({
@@ -18,6 +22,7 @@ export function buildExperimentCsv({
   samples,
   noiseEnabled = false,
   noiseSigmaRel = 0.02,
+  blindMode = false,
 }) {
   const geometry = GEOMETRIES[params.geometry];
   if (!geometry || !dynamics) throw new Error('Dados insuficientes para exportar o experimento.');
@@ -30,6 +35,7 @@ export function buildExperimentCsv({
 
   const commentHeader = [
     `# Laboratório Virtual de Dinâmica de Rotação e Momento de Inércia — UNIVASF`,
+    `#Modo de Exportacao: ${blindMode ? 'Modo Cego para Relatorio (apenas leituras de sensor)' : 'Completo (teorico + experimental)'}`,
     `# Corpo: ${geometry.nome} (${geometry.id})`,
     `# M (kg): ${csvCell(params.mass)}`,
     `# ${dimLabel}: ${csvCell(params.size)}`,
@@ -41,21 +47,29 @@ export function buildExperimentCsv({
     `# F (N): ${csvCell(params.force)}`,
     `# Sentido: ${params.direction > 0 ? 'anti-horario (+)' : 'horario (-)'}`,
     `# Torque (N.m): ${csvCell(dynamics.tau)}`,
-    `# Alfa teorico (rad/s2): ${csvCell(dynamics.alpha)}`,
+    ...(blindMode ? [] : [`# Alfa teorico (rad/s2): ${csvCell(dynamics.alpha)}`]),
     `# Ruido (%): ${csvCell(noisePct)}`,
     `# Incerteza instrumental de tempo (s): +-0.01`,
   ];
 
-  const columns = [
-    't_s',
-    'theta_teorico_rad',
-    'theta_medido_rad',
-    'omega_teorico_rads',
-    'omega_medido_rads',
-    'alfa_medido_rads2',
-    'energia_cinetica_J',
-    'trabalho_J',
-  ];
+  const columns = blindMode
+    ? [
+        't_s',
+        'theta_medido_rad',
+        'omega_medido_rads',
+        'alfa_medido_rads2',
+        'energia_cinetica_medida_J',
+      ]
+    : [
+        't_s',
+        'theta_teorico_rad',
+        'theta_medido_rad',
+        'omega_teorico_rads',
+        'omega_medido_rads',
+        'alfa_medido_rads2',
+        'energia_cinetica_J',
+        'trabalho_J',
+      ];
 
   const rows = samples.map((s) => {
     const t = s.t_s ?? s.t ?? 0;
@@ -64,10 +78,13 @@ export function buildExperimentCsv({
     const omegaTeo = s.omega_teorico_rads ?? s.omega ?? 0;
     const omegaMed = s.omega_medido_rads ?? s.omegaMeasured ?? omegaTeo;
     const alfaMed = s.alfa_medido_rads2 ?? s.alphaMeasured ?? s.alpha ?? dynamics.alpha;
-    const energetics = computeEnergetics(dynamics.I, dynamics.tau, omegaTeo, thetaTeo);
-    const kRot = s.energia_cinetica_J ?? s.kineticEnergy ?? energetics.kineticEnergy;
-    const work = s.trabalho_J ?? s.work ?? energetics.work;
-    return [t, thetaTeo, thetaMed, omegaTeo, omegaMed, alfaMed, kRot, work].map(csvCell).join(';');
+    const energeticsMed = computeEnergetics(dynamics.I, dynamics.tau, omegaMed, thetaMed);
+    const kRot = s.energia_cinetica_J ?? s.kineticEnergyMeasured ?? s.kineticEnergy ?? energeticsMed.kineticEnergy;
+    const work = s.trabalho_J ?? s.workMeasured ?? s.work ?? energeticsMed.work;
+    const rowData = blindMode
+      ? [t, thetaMed, omegaMed, alfaMed, kRot]
+      : [t, thetaTeo, thetaMed, omegaTeo, omegaMed, alfaMed, kRot, work];
+    return rowData.map(csvCell).join(';');
   });
 
   const allLines = [...commentHeader, columns.join(';'), ...rows];

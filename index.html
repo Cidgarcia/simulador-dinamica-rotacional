@@ -206,13 +206,13 @@
 
         <dl class="readouts" id="readouts">
           <div class="readout"><dt>Tempo <var>t</var></dt><dd><span data-out="t">0,00</span><span class="unit">s</span></dd><span class="readout-sub" data-out="t-sub">Δt_inst = ±0,01 s</span></div>
-          <div class="readout"><dt>Momento de inércia <var>I</var></dt><dd><span data-out="I">—</span><span class="unit">kg·m²</span></dd><span class="readout-sub" data-out="inertia-sub">Icm = — · Md² = 0</span></div>
-          <div class="readout"><dt>Torque <var>τ</var></dt><dd><span data-out="tau">—</span><span class="unit">N·m</span></dd><span class="readout-sub" data-out="torque-sub">b = — m</span></div>
-          <div class="readout"><dt>Aceleração angular <var>α</var></dt><dd><span data-out="alpha">—</span><span class="unit">rad/s²</span></dd><span class="readout-sub" data-out="alpha-sub">Determinístico</span></div>
-          <div class="readout readout--live"><dt>Velocidade angular <var>ω</var></dt><dd><span data-out="omega">0</span><span class="unit">rad/s</span></dd><span class="readout-sub" data-out="omega-sub">ω(t) = αt</span></div>
-          <div class="readout readout--live"><dt>Posição angular <var>θ</var></dt><dd><span data-out="theta">0</span><span class="unit">rad</span></dd><span class="readout-sub" data-out="turns">0 voltas</span></div>
-          <div class="readout readout--energy"><dt>Energia cinética <var>K</var><sub>rot</sub></dt><dd><span data-out="krot">0</span><span class="unit">J</span></dd><span class="readout-sub" data-out="krot-sub">K_rot = ½ I ω²</span></div>
-          <div class="readout readout--energy"><dt>Trabalho do torque <var>W</var></dt><dd><span data-out="work">0</span><span class="unit">J</span></dd><span class="readout-sub" data-out="power-sub">P = 0 W (τ·ω)</span></div>
+          <div class="readout"><dt>Momento de inércia <var>I</var></dt><dd><span data-out="I">0,000</span><span class="unit">kg·m²</span></dd><span class="readout-sub" data-out="inertia-sub">Icm = 0,000 · Md² = 0,000</span></div>
+          <div class="readout"><dt>Torque <var>τ</var></dt><dd><span data-out="tau">0,000</span><span class="unit">N·m</span></dd><span class="readout-sub" data-out="torque-sub">b = 0,00 m</span></div>
+          <div class="readout"><dt>Aceleração angular <var>α</var></dt><dd><span data-out="alpha">0,00</span><span class="unit">rad/s²</span></dd><span class="readout-sub" data-out="alpha-sub">Determinístico</span></div>
+          <div class="readout readout--live"><dt>Velocidade angular <var>ω</var></dt><dd><span data-out="omega">0,00</span><span class="unit">rad/s</span></dd><span class="readout-sub" data-out="omega-sub">ω(t) = αt</span></div>
+          <div class="readout readout--live"><dt>Posição angular <var>θ</var></dt><dd><span data-out="theta">0,00</span><span class="unit">rad</span></dd><span class="readout-sub" data-out="turns">0,00 voltas</span></div>
+          <div class="readout readout--energy"><dt>Energia cinética <var>K</var><sub>rot</sub></dt><dd><span data-out="krot">0,00</span><span class="unit">J</span></dd><span class="readout-sub" data-out="krot-sub">K_rot = ½ I ω²</span></div>
+          <div class="readout readout--energy"><dt>Trabalho do torque <var>W</var></dt><dd><span data-out="work">0,00</span><span class="unit">J</span></dd><span class="readout-sub" data-out="power-sub">P = 0,00 W (τ·ω)</span></div>
         </dl>
 
         <div class="equations" id="equations" aria-label="Equações com os valores atuais"></div>
@@ -222,23 +222,27 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20h14v-2H5v2zM12 3v10.17l3.59-3.58L17 11l-5 5-5-5 1.41-1.41L11 13.17V3h1z" fill="currentColor"/></svg>
             Exportar CSV (Dados Experimentais)
           </button>
+          <label class="blind-mode-check" for="blind-mode-toggle">
+            <input type="checkbox" id="blind-mode-toggle" name="blindMode" />
+            <span>Ocultar valores teóricos na tabela/CSV (Modo Cego para Relatório)</span>
+          </label>
           <span class="export-status" id="sample-count-badge">0 amostras coletadas (Δt = 0,20 s)</span>
         </div>
 
         <details class="sample-table-details" id="sample-table-details">
           <summary>Ver tabela de dados amostrados (t, θ, ω, K)</summary>
           <div class="table-scroll">
-            <table class="sample-table" aria-label="Tabela de dados experimentais amostrados">
+            <table class="sample-table" id="sample-table" aria-label="Tabela de dados experimentais amostrados">
               <thead>
                 <tr>
                   <th scope="col"><var>t</var> (s)</th>
-                  <th scope="col"><var>θ</var><sub>teór</sub> (rad)</th>
+                  <th scope="col" data-col="theoretical"><var>θ</var><sub>teór</sub> (rad)</th>
                   <th scope="col"><var>θ</var><sub>med</sub> (rad)</th>
-                  <th scope="col"><var>ω</var><sub>teór</sub> (rad/s)</th>
+                  <th scope="col" data-col="theoretical"><var>ω</var><sub>teór</sub> (rad/s)</th>
                   <th scope="col"><var>ω</var><sub>med</sub> (rad/s)</th>
                   <th scope="col"><var>α</var><sub>med</sub> (rad/s²)</th>
                   <th scope="col"><var>K</var><sub>rot</sub> (J)</th>
-                  <th scope="col"><var>W</var> (J)</th>
+                  <th scope="col" data-col="theoretical"><var>W</var> (J)</th>
                 </tr>
               </thead>
               <tbody id="sample-table-body">
@@ -307,12 +311,12 @@
           <article class="comparison-body comparison-body--disk">
             <header><span class="comparison-dot" aria-hidden="true"></span><h3>Disco maciço</h3></header>
             <canvas id="comparison-disk" width="240" height="180" role="img" aria-label="Visualização do disco em rotação"></canvas>
-            <dl><div><dt>I</dt><dd data-compare="disk-I">—</dd></div><div><dt>τ</dt><dd data-compare="disk-tau">—</dd></div><div><dt>α</dt><dd data-compare="disk-alpha">—</dd></div><div><dt>ω</dt><dd data-compare="disk-omega">0</dd></div><div><dt>θ</dt><dd data-compare="disk-theta">0</dd></div></dl>
+            <dl><div><dt>I</dt><dd data-compare="disk-I">—</dd></div><div><dt>τ</dt><dd data-compare="disk-tau">—</dd></div><div><dt>α</dt><dd data-compare="disk-alpha">—</dd></div><div><dt>ω</dt><dd data-compare="disk-omega">0,00 rad/s</dd></div><div><dt>θ</dt><dd data-compare="disk-theta">0,00 rad</dd></div><div><dt>K<sub>rot</sub> / W</dt><dd data-compare="disk-energy">0,00 J</dd></div></dl>
           </article>
           <article class="comparison-body comparison-body--ring">
             <header><span class="comparison-dot" aria-hidden="true"></span><h3>Anel fino</h3></header>
             <canvas id="comparison-ring" width="240" height="180" role="img" aria-label="Visualização do anel em rotação"></canvas>
-            <dl><div><dt>I</dt><dd data-compare="ring-I">—</dd></div><div><dt>τ</dt><dd data-compare="ring-tau">—</dd></div><div><dt>α</dt><dd data-compare="ring-alpha">—</dd></div><div><dt>ω</dt><dd data-compare="ring-omega">0</dd></div><div><dt>θ</dt><dd data-compare="ring-theta">0</dd></div></dl>
+            <dl><div><dt>I</dt><dd data-compare="ring-I">—</dd></div><div><dt>τ</dt><dd data-compare="ring-tau">—</dd></div><div><dt>α</dt><dd data-compare="ring-alpha">—</dd></div><div><dt>ω</dt><dd data-compare="ring-omega">0,00 rad/s</dd></div><div><dt>θ</dt><dd data-compare="ring-theta">0,00 rad</dd></div><div><dt>K<sub>rot</sub> / W</dt><dd data-compare="ring-energy">0,00 J</dd></div></dl>
           </article>
         </div>
         <div class="comparison-charts">
@@ -364,11 +368,12 @@
             <canvas id="steiner-central-canvas" width="240" height="190" role="img" aria-label="Visualização do corpo girando em torno do eixo central"></canvas>
             <dl class="steiner-dl">
               <div><dt>I<sub>cm</sub></dt><dd data-steiner="central-Icm">—</dd></div>
-              <div><dt>Md²</dt><dd data-steiner="central-Id">0 kg·m²</dd></div>
+              <div><dt>Md²</dt><dd data-steiner="central-Id">0,000 kg·m²</dd></div>
               <div><dt>I total</dt><dd data-steiner="central-I">—</dd></div>
               <div><dt>τ</dt><dd data-steiner="central-tau">—</dd></div>
               <div><dt>α</dt><dd data-steiner="central-alpha">—</dd></div>
-              <div><dt>ω / θ</dt><dd data-steiner="central-kin">0 rad/s · 0 rad</dd></div>
+              <div><dt>ω / θ</dt><dd data-steiner="central-kin">0,00 rad/s · 0,00 rad</dd></div>
+              <div class="dl-span-full"><dt>K<sub>rot</sub> / W</dt><dd data-steiner="central-energy">0,00 J</dd></div>
             </dl>
           </article>
           <article class="comparison-body comparison-body--ring">
@@ -380,7 +385,8 @@
               <div><dt>I total</dt><dd data-steiner="displaced-I">—</dd></div>
               <div><dt>τ</dt><dd data-steiner="displaced-tau">—</dd></div>
               <div><dt>α</dt><dd data-steiner="displaced-alpha">—</dd></div>
-              <div><dt>ω / θ</dt><dd data-steiner="displaced-kin">0 rad/s · 0 rad</dd></div>
+              <div><dt>ω / θ</dt><dd data-steiner="displaced-kin">0,00 rad/s · 0,00 rad</dd></div>
+              <div class="dl-span-full"><dt>K<sub>rot</sub> / W</dt><dd data-steiner="displaced-energy">0,00 J</dd></div>
             </dl>
           </article>
         </div>

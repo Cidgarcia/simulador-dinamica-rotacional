@@ -51,4 +51,37 @@ describe('exportação CSV', () => {
     expect(csv).toContain('# Ruido (%): 0');
     expect(csv).toContain('0.06;-0.0018;-0.0018;-0.06;-0.06;-1;0.0009;0.0009');
   });
+
+  it('exporta apenas dados de sensor no Modo Cego para Relatório (blindMode = true)', () => {
+    const params = { geometry: 'disco', mass: 2, size: 0.5, axisOffset: 0, force: 1, direction: 1 };
+    const dynamics = computeDynamics(params);
+    const csv = buildExperimentCsv({
+      params,
+      dynamics,
+      noiseEnabled: true,
+      noiseSigmaRel: 0.02,
+      blindMode: true,
+      samples: [
+        {
+          t_s: 1,
+          theta_teorico_rad: 1,
+          theta_medido_rad: 1.03,
+          omega_teorico_rads: 2,
+          omega_medido_rads: 2.04,
+          alfa_medido_rads2: 2.02,
+          energia_cinetica_J: 0.5202,
+          trabalho_J: 0.5,
+        },
+      ],
+    });
+
+    expect(csv).toContain('#Modo de Exportacao: Modo Cego para Relatorio');
+    expect(csv).not.toContain('# Alfa teorico');
+    expect(csv).not.toContain('theta_teorico_rad');
+    expect(csv).not.toContain('omega_teorico_rads');
+    expect(csv).toContain(
+      't_s;theta_medido_rad;omega_medido_rads;alfa_medido_rads2;energia_cinetica_medida_J'
+    );
+    expect(csv).toContain('1;1.03;2.04;2.02;0.5202');
+  });
 });

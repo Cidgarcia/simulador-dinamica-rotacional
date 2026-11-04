@@ -37,6 +37,7 @@ const ui = {
   noiseEnabled: false,
   noiseSigmaRel: 0.02,
   sampleDt: 0.2,
+  blindMode: false,
   text: {
     mass: formatFixed(DEFAULTS.mass, DECIMALS.mass),
     radius: formatFixed(DEFAULTS.radius, DECIMALS.radius),
@@ -89,7 +90,9 @@ const el = {
   equations: $('#equations'),
   noiseToggle: $('#noise-toggle'),
   noiseOptions: $('#noise-options'),
+  blindModeToggle: $('#blind-mode-toggle'),
   sampleCountBadge: $('#sample-count-badge'),
+  sampleTable: $('#sample-table'),
   sampleTableBody: $('#sample-table-body'),
   outputs: Object.fromEntries([...document.querySelectorAll('[data-out]')].map((n) => [n.dataset.out, n])),
   fields: {
@@ -388,6 +391,20 @@ function initForm() {
       updateSampleTable();
     })
   );
+  if (el.blindModeToggle) {
+    el.blindModeToggle.addEventListener('change', () => {
+      ui.blindMode = el.blindModeToggle.checked;
+      if (el.sampleTable) el.sampleTable.classList.toggle('is-blind', ui.blindMode);
+      discreteDirty = true;
+      updateSampleTable();
+      showNotice(
+        ui.blindMode
+          ? 'Modo Cego ativo: valores teóricos ocultados na tabela e no CSV para elaboração de relatório.'
+          : 'Modo completo ativo: previsões teóricas e leituras experimentais visíveis.',
+        'info'
+      );
+    });
+  }
   $('#params-form').addEventListener('submit', (e) => e.preventDefault());
 }
 
@@ -430,7 +447,7 @@ function pushSample(force = false) {
         omega_teorico_rads: s.omega,
         omega_medido_rads: measured.omegaMeasured,
         alfa_medido_rads2: measured.alphaMeasured,
-        energia_cinetica_J: s.kineticEnergy,
+        energia_cinetica_J: ui.noiseEnabled ? measured.kineticEnergyMeasured : s.kineticEnergy,
         trabalho_J: s.work,
       });
       discreteDirty = true;
@@ -470,9 +487,16 @@ el.btnExportCsv.addEventListener('click', () => {
     samples: discreteSamples,
     noiseEnabled: ui.noiseEnabled,
     noiseSigmaRel: ui.noiseSigmaRel,
+    blindMode: ui.blindMode,
   });
-  downloadCsv(`dados_rotacao_${geometry}_${stamp}.csv`, csv);
-  showNotice('Dados experimentais exportados em CSV com metadados comentados e unidades SI.', 'info');
+  const suffix = ui.blindMode ? '_modo_cego' : '';
+  downloadCsv(`dados_rotacao_${geometry}${suffix}_${stamp}.csv`, csv);
+  showNotice(
+    ui.blindMode
+      ? 'CSV exportado em Modo Cego (apenas leituras de sensor para relatório).'
+      : 'Dados experimentais exportados em CSV com metadados comentados e unidades SI.',
+    'info'
+  );
 });
 
 el.btnView.addEventListener('click', () => lab?.resetView());
@@ -519,11 +543,11 @@ function setText(node, text) {
   if (node && node.textContent !== text) node.textContent = text;
 }
 
-function formatWithUncertainty(val, sigma, sig = 3) {
+function formatWithUncertainty(val, sigma, digits = 2) {
   if (!ui.noiseEnabled || !Number.isFinite(sigma) || sigma <= 0) {
-    return formatNumber(val, 4);
+    return formatFixed(val, digits);
   }
-  return `${formatNumber(val, sig)} ± ${formatNumber(sigma, 2)}`;
+  return `${formatFixed(val, digits)} ± ${formatFixed(sigma, digits)}`;
 }
 
 function updateReadouts() {
@@ -556,39 +580,44 @@ function updateReadouts() {
       : sampleExperimentalState(s, { enabled: ui.noiseEnabled, sigmaRel: ui.noiseSigmaRel });
   latestMeasuredState = m;
 
-  setText(el.outputs.I, formatNumber(s.I, 4));
-  setText(el.outputs['inertia-sub'], `Icm = ${formatNumber(s.Icm, 3)} · Md² = ${formatNumber(s.Id, 3)}`);
-  setText(el.outputs.tau, formatNumber(s.tau, 4));
+  setText(el.outputs.I, formatFixed(s.I, 3));
+  setText(el.outputs['inertia-sub'], `Icm = ${formatFixed(s.Icm, 3)} · Md² = ${formatFixed(s.Id, 3)}`);
+  setText(el.outputs.tau, formatFixed(s.tau, 3));
   setText(
     el.outputs['torque-sub'],
     s.axisOffset > 0
-      ? `b = ${formatNumber(s.b, 3)} m (${formatNumber(s.bCm, 3)} + d)`
-      : `b = ${formatNumber(s.b, 3)} m (d = 0)`
+      ? `b = ${formatFixed(s.b, 2)} m (${formatFixed(s.bCm, 2)} + d)`
+      : `b = ${formatFixed(s.b, 2)} m (d = 0,00)`
   );
 
   const alphaDisplay = ui.noiseEnabled ? m.alphaMeasured : s.alpha;
   const omegaDisplay = ui.noiseEnabled ? m.omegaMeasured : s.omega;
   const thetaDisplay = ui.noiseEnabled ? m.thetaMeasured : s.theta;
+  const kRotDisplay = ui.noiseEnabled ? m.kineticEnergyMeasured : s.kineticEnergy;
 
-  setText(el.outputs.alpha, formatWithUncertainty(alphaDisplay, m.sigmaAlpha, 3));
+  setText(el.outputs.alpha, formatWithUncertainty(alphaDisplay, m.sigmaAlpha, 2));
   setText(
     el.outputs['alpha-sub'],
-    ui.noiseEnabled ? `Teórico: ${formatNumber(s.alpha, 4)} rad/s²` : 'α = τ / I (constante)'
+    ui.noiseEnabled ? `Teórico: ${formatFixed(s.alpha, 2)} rad/s²` : 'α = τ / I (constante)'
   );
-  setText(el.outputs.omega, formatWithUncertainty(omegaDisplay, m.sigmaOmega, 3));
+  setText(el.outputs.omega, formatWithUncertainty(omegaDisplay, m.sigmaOmega, 2));
   setText(
     el.outputs['omega-sub'],
-    ui.noiseEnabled ? `Teórico: ${formatNumber(s.omega, 3)} rad/s` : 'ω(t) = α t'
+    ui.noiseEnabled ? `Teórico: ${formatFixed(s.omega, 2)} rad/s` : 'ω(t) = α t'
   );
-  setText(el.outputs.theta, formatWithUncertainty(thetaDisplay, m.sigmaTheta, 3));
+  setText(el.outputs.theta, formatWithUncertainty(thetaDisplay, m.sigmaTheta, 2));
   const turns = s.theta / (2 * Math.PI);
-  const abs = Math.abs(turns);
-  setText(el.outputs.turns, `≈ ${formatNumber(turns, 3)} ${abs > 0 && abs < 2 ? 'volta' : 'voltas'}`);
+  setText(el.outputs.turns, `≈ ${formatFixed(turns, 2)} voltas`);
 
-  setText(el.outputs.krot, formatNumber(s.kineticEnergy, 4));
-  setText(el.outputs['krot-sub'], `K_rot = ½ I ω²`);
-  setText(el.outputs.work, formatNumber(s.work, 4));
-  setText(el.outputs['power-sub'], `P = ${formatNumber(s.power, 4)} W (τ·ω)`);
+  setText(el.outputs.krot, formatWithUncertainty(kRotDisplay, m.sigmaKineticEnergy, 2));
+  setText(
+    el.outputs['krot-sub'],
+    ui.noiseEnabled
+      ? `K_rot,med = ½ I ω_med² (σ_K = I ω σ_ω)`
+      : `K_rot = ½ I ω²`
+  );
+  setText(el.outputs.work, formatFixed(s.work, 2));
+  setText(el.outputs['power-sub'], `P = ${formatFixed(s.power, 2)} W (τ·ω)`);
 }
 
 function eq(html) {
@@ -609,14 +638,14 @@ function renderEquations() {
   }
   el.equations.append(
     eq(
-      `<span class="eq-k">${g.formulaI}</span> = ${formatNumber(d.Icm, 4)} + ${formatNumber(d.Id, 4)} = <b>${formatNumber(d.I, 4)}</b> kg·m²`
+      `<span class="eq-k">${g.formulaI}</span> = ${formatFixed(d.Icm, 3)} + ${formatFixed(d.Id, 3)} = <b>${formatFixed(d.I, 3)}</b> kg·m²`
     ),
     eq(
-      `<span class="eq-k">τ = (r × F)<sub>eixo</sub> = ${ui.direction > 0 ? '+' : '−'}b·F</span>, ${g.formulaB} = ${formatNumber(d.b, 4)} m ⇒ τ = <b>${formatNumber(d.tau, 4)}</b> N·m`
+      `<span class="eq-k">τ = (r × F)<sub>eixo</sub> = ${ui.direction > 0 ? '+' : '−'}b·F</span>, ${g.formulaB} = ${formatFixed(d.b, 2)} m ⇒ τ = <b>${formatFixed(d.tau, 3)}</b> N·m`
     ),
-    eq(`<span class="eq-k">α = τ / I</span> = <b>${formatNumber(d.alpha, 4)}</b> rad/s²`),
+    eq(`<span class="eq-k">α = τ / I</span> = <b>${formatFixed(d.alpha, 2)}</b> rad/s²`),
     eq(
-      `<span class="eq-k">K<sub>rot</sub> = ½ I ω² = W = τ θ</span> ⇒ ½·(${formatNumber(d.I, 3)})·(${formatNumber(s.omega, 3)})² = (${formatNumber(d.tau, 3)})·(${formatNumber(s.theta, 3)}) = <b data-eq-energy>${formatNumber(s.kineticEnergy, 4)}</b> J`
+      `<span class="eq-k">K<sub>rot</sub> = ½ I ω² = W = τ θ</span> ⇒ ½·(${formatFixed(d.I, 3)})·(${formatFixed(s.omega, 2)})² = (${formatFixed(d.tau, 3)})·(${formatFixed(s.theta, 2)}) = <b data-eq-energy>${formatFixed(s.kineticEnergy, 2)}</b> J`
     )
   );
 }
@@ -627,7 +656,7 @@ function updateDynamicEquationEnergy() {
   if (!s || !d || !el.equations) return;
   const lastEq = el.equations.lastElementChild;
   if (!lastEq) return;
-  lastEq.innerHTML = `<span class="eq-k">K<sub>rot</sub> = ½ I ω² = W = τ θ</span> ⇒ ½·(${formatNumber(d.I, 3)})·(${formatNumber(s.omega, 3)})² = (${formatNumber(d.tau, 3)})·(${formatNumber(s.theta, 3)}) = <b>${formatNumber(s.kineticEnergy, 4)}</b> J`;
+  lastEq.innerHTML = `<span class="eq-k">K<sub>rot</sub> = ½ I ω² = W = τ θ</span> ⇒ ½·(${formatFixed(d.I, 3)})·(${formatFixed(s.omega, 2)})² = (${formatFixed(d.tau, 3)})·(${formatFixed(s.theta, 2)}) = <b>${formatFixed(s.kineticEnergy, 2)}</b> J`;
 }
 
 function updateSampleTable() {
@@ -637,11 +666,13 @@ function updateSampleTable() {
     el.sampleCountBadge.textContent = `${discreteSamples.length} ${discreteSamples.length === 1 ? 'amostra coletada' : 'amostras coletadas'} (Δt = ${formatFixed(ui.sampleDt, 2)} s)`;
   }
   if (!el.sampleTableBody) return;
+  if (el.sampleTable) el.sampleTable.classList.toggle('is-blind', ui.blindMode);
   el.sampleTableBody.replaceChildren();
   if (discreteSamples.length === 0) {
     const tr = document.createElement('tr');
     tr.className = 'table-empty-row';
-    tr.innerHTML = '<td colspan="8">Nenhuma amostra registrada. Pressione <em>Iniciar</em> para coletar pares ordenados.</td>';
+    const colSpan = ui.blindMode ? 5 : 8;
+    tr.innerHTML = `<td colspan="${colSpan}">Nenhuma amostra registrada. Pressione <em>Iniciar</em> para coletar pares ordenados.</td>`;
     el.sampleTableBody.appendChild(tr);
     return;
   }
@@ -649,18 +680,19 @@ function updateSampleTable() {
   for (const row of discreteSamples) {
     const tr = document.createElement('tr');
     const cells = [
-      formatFixed(row.t_s, 2),
-      formatNumber(row.theta_teorico_rad, 4),
-      formatNumber(row.theta_medido_rad, 4),
-      formatNumber(row.omega_teorico_rads, 4),
-      formatNumber(row.omega_medido_rads, 4),
-      formatNumber(row.alfa_medido_rads2, 4),
-      formatNumber(row.energia_cinetica_J, 4),
-      formatNumber(row.trabalho_J, 4),
+      { txt: formatFixed(row.t_s, 2), theoretical: false },
+      { txt: formatFixed(row.theta_teorico_rad, 3), theoretical: true },
+      { txt: formatFixed(row.theta_medido_rad, 3), theoretical: false },
+      { txt: formatFixed(row.omega_teorico_rads, 3), theoretical: true },
+      { txt: formatFixed(row.omega_medido_rads, 3), theoretical: false },
+      { txt: formatFixed(row.alfa_medido_rads2, 3), theoretical: false },
+      { txt: formatFixed(row.energia_cinetica_J, 3), theoretical: false },
+      { txt: formatFixed(row.trabalho_J, 3), theoretical: true },
     ];
-    for (const txt of cells) {
+    for (const c of cells) {
       const td = document.createElement('td');
-      td.textContent = txt;
+      if (c.theoretical) td.dataset.col = 'theoretical';
+      td.textContent = c.txt;
       tr.appendChild(td);
     }
     frag.appendChild(tr);
@@ -931,7 +963,7 @@ function updateComparison() {
   const ringState = comparison.ring?.state;
   setText(el.comparison.clock, formatFixed(comparison.disk?.time ?? 0, 2));
   if (!diskState || !ringState) {
-    ['disk-I', 'disk-tau', 'disk-alpha', 'disk-omega', 'disk-theta', 'ring-I', 'ring-tau', 'ring-alpha', 'ring-omega', 'ring-theta'].forEach((k) =>
+    ['disk-I', 'disk-tau', 'disk-alpha', 'disk-omega', 'disk-theta', 'disk-energy', 'ring-I', 'ring-tau', 'ring-alpha', 'ring-omega', 'ring-theta', 'ring-energy'].forEach((k) =>
       setCompareText(k, '—')
     );
     drawComparisonBody(el.comparison.diskCanvas, 'disco', 0, { force: 0, direction: 1 });
@@ -945,16 +977,18 @@ function updateComparison() {
     return;
   }
   const { force, direction, size } = comparison.disk.params;
-  setCompareText('disk-I', `${formatNumber(diskState.I, 3)} kg·m²`);
-  setCompareText('disk-tau', `${formatNumber(diskState.tau, 3)} N·m`);
-  setCompareText('disk-alpha', `${formatNumber(diskState.alpha, 3)} rad/s²`);
-  setCompareText('disk-omega', `${formatNumber(diskState.omega, 3)} rad/s`);
-  setCompareText('disk-theta', `${formatNumber(diskState.theta, 3)} rad`);
-  setCompareText('ring-I', `${formatNumber(ringState.I, 3)} kg·m²`);
-  setCompareText('ring-tau', `${formatNumber(ringState.tau, 3)} N·m`);
-  setCompareText('ring-alpha', `${formatNumber(ringState.alpha, 3)} rad/s²`);
-  setCompareText('ring-omega', `${formatNumber(ringState.omega, 3)} rad/s`);
-  setCompareText('ring-theta', `${formatNumber(ringState.theta, 3)} rad`);
+  setCompareText('disk-I', `${formatFixed(diskState.I, 3)} kg·m²`);
+  setCompareText('disk-tau', `${formatFixed(diskState.tau, 3)} N·m`);
+  setCompareText('disk-alpha', `${formatFixed(diskState.alpha, 2)} rad/s²`);
+  setCompareText('disk-omega', `${formatFixed(diskState.omega, 2)} rad/s`);
+  setCompareText('disk-theta', `${formatFixed(diskState.theta, 2)} rad`);
+  setCompareText('disk-energy', `${formatFixed(diskState.kineticEnergy, 2)} J`);
+  setCompareText('ring-I', `${formatFixed(ringState.I, 3)} kg·m²`);
+  setCompareText('ring-tau', `${formatFixed(ringState.tau, 3)} N·m`);
+  setCompareText('ring-alpha', `${formatFixed(ringState.alpha, 2)} rad/s²`);
+  setCompareText('ring-omega', `${formatFixed(ringState.omega, 2)} rad/s`);
+  setCompareText('ring-theta', `${formatFixed(ringState.theta, 2)} rad`);
+  setCompareText('ring-energy', `${formatFixed(ringState.kineticEnergy, 2)} J`);
   drawComparisonBody(el.comparison.diskCanvas, 'disco', diskState.theta, { force, direction, axisOffset: 0, bCm: size });
   drawComparisonBody(el.comparison.ringCanvas, 'anel', ringState.theta, { force, direction, axisOffset: 0, bCm: size });
   const status = comparisonStatus();
@@ -1090,8 +1124,8 @@ function updateSteinerComparison() {
   setText(el.steiner.clock, formatFixed(steiner.central?.time ?? 0, 2));
   if (!cState || !dState) {
     [
-      'central-Icm', 'central-Id', 'central-I', 'central-tau', 'central-alpha', 'central-kin',
-      'displaced-Icm', 'displaced-Id', 'displaced-I', 'displaced-tau', 'displaced-alpha', 'displaced-kin',
+      'central-Icm', 'central-Id', 'central-I', 'central-tau', 'central-alpha', 'central-kin', 'central-energy',
+      'displaced-Icm', 'displaced-Id', 'displaced-I', 'displaced-tau', 'displaced-alpha', 'displaced-kin', 'displaced-energy',
     ].forEach((k) => setSteinerText(k, '—'));
     const geo = el.steiner.geometry?.value ?? 'disco';
     drawComparisonBody(el.steiner.centralCanvas, geo, 0, { force: 0, direction: 1, axisOffset: 0 });
@@ -1109,19 +1143,21 @@ function updateSteinerComparison() {
   const { geometry, mass, torqueOverride, direction } = steiner.displaced.params;
   const dVal = dState.axisOffset;
 
-  setSteinerText('central-Icm', `${formatNumber(cState.Icm, 4)} kg·m²`);
-  setSteinerText('central-Id', `0 kg·m²`);
-  setSteinerText('central-I', `${formatNumber(cState.I, 4)} kg·m²`);
-  setSteinerText('central-tau', `${formatNumber(cState.tau, 4)} N·m`);
-  setSteinerText('central-alpha', `${formatNumber(cState.alpha, 4)} rad/s²`);
-  setSteinerText('central-kin', `${formatNumber(cState.omega, 3)} rad/s · ${formatNumber(cState.theta, 3)} rad`);
+  setSteinerText('central-Icm', `${formatFixed(cState.Icm, 3)} kg·m²`);
+  setSteinerText('central-Id', `0,000 kg·m²`);
+  setSteinerText('central-I', `${formatFixed(cState.I, 3)} kg·m²`);
+  setSteinerText('central-tau', `${formatFixed(cState.tau, 3)} N·m`);
+  setSteinerText('central-alpha', `${formatFixed(cState.alpha, 2)} rad/s²`);
+  setSteinerText('central-kin', `${formatFixed(cState.omega, 2)} rad/s · ${formatFixed(cState.theta, 2)} rad`);
+  setSteinerText('central-energy', `${formatFixed(cState.kineticEnergy, 2)} J`);
 
-  setSteinerText('displaced-Icm', `${formatNumber(dState.Icm, 4)} kg·m²`);
-  setSteinerText('displaced-Id', `${formatNumber(dState.Id, 4)} kg·m²`);
-  setSteinerText('displaced-I', `${formatNumber(dState.I, 4)} kg·m²`);
-  setSteinerText('displaced-tau', `${formatNumber(dState.tau, 4)} N·m`);
-  setSteinerText('displaced-alpha', `${formatNumber(dState.alpha, 4)} rad/s²`);
-  setSteinerText('displaced-kin', `${formatNumber(dState.omega, 3)} rad/s · ${formatNumber(dState.theta, 3)} rad`);
+  setSteinerText('displaced-Icm', `${formatFixed(dState.Icm, 3)} kg·m²`);
+  setSteinerText('displaced-Id', `${formatFixed(dState.Id, 3)} kg·m²`);
+  setSteinerText('displaced-I', `${formatFixed(dState.I, 3)} kg·m²`);
+  setSteinerText('displaced-tau', `${formatFixed(dState.tau, 3)} N·m`);
+  setSteinerText('displaced-alpha', `${formatFixed(dState.alpha, 2)} rad/s²`);
+  setSteinerText('displaced-kin', `${formatFixed(dState.omega, 2)} rad/s · ${formatFixed(dState.theta, 2)} rad`);
+  setSteinerText('displaced-energy', `${formatFixed(dState.kineticEnergy, 2)} J`);
 
   const visForce = torqueOverride > 0 ? Math.min(torqueOverride * 2, 5) : 0;
   drawComparisonBody(el.steiner.centralCanvas, geometry, cState.theta, {
