@@ -40,25 +40,107 @@ describe("momento de inércia e braço", () => {
 });
 
 describe("dinâmica", () => {
-  it("reproduz o caso de referência: M=2 kg, R=0,5 m, F=1 N", () => {
-    const disco = computeDynamics({
+  it("reproduz o caso obrigatório completo em t = 2 s: Disco M=2 kg, R=0,5 m, F=1 N, d=0", () => {
+    const exp = new Experiment({
       geometry: "disco",
       mass: 2,
       size: 0.5,
+      axisOffset: 0,
       force: 1,
       direction: 1,
     });
-    const anel = computeDynamics({
-      geometry: "anel",
+    exp.start();
+    exp.advance(2, 1); // avanço não limitado? Nota: advance limita por MAX_FRAME_DT (0,1 s)
+    exp.reset();
+    exp.start();
+    for (let i = 0; i < 40; i++) exp.advance(0.05, 1); // 40 * 0,05 s = 2,00 s exatos
+
+    const s = exp.state;
+    expect(s.t).toBeCloseTo(2, 12);
+    expect(s.I).toBeCloseTo(0.25, 12);
+    expect(s.b).toBeCloseTo(0.5, 12);
+    expect(s.tau).toBeCloseTo(0.5, 12);
+    expect(s.alpha).toBeCloseTo(2, 12);
+    expect(s.omega).toBeCloseTo(4, 12);
+    expect(s.theta).toBeCloseTo(4, 12);
+    expect(s.kineticEnergy).toBeCloseTo(2, 12);
+    expect(s.work).toBeCloseTo(2, 12);
+  });
+
+  it("testa anel fino, duplicação da massa, duplicação da força e conservação de energia em t = 2 s", () => {
+    // 1. Anel fino (M=2, R=0,5, F=1, d=0, t=2 s) -> I=0,5, tau=0,5, alpha=1, omega=2, theta=2, K=1 J, W=1 J
+    const anel = computeDynamics({ geometry: "anel", mass: 2, size: 0.5, axisOffset: 0, force: 1, direction: 1 });
+    const kinAnel = kinematics(anel.alpha, 2);
+    const enAnel = computeEnergetics(anel.I, anel.tau, kinAnel.omega, kinAnel.theta);
+    expect(anel).toMatchObject({ I: 0.5, tau: 0.5, alpha: 1 });
+    expect(kinAnel).toEqual({ omega: 2, theta: 2 });
+    expect(enAnel.kineticEnergy).toBeCloseTo(1, 12);
+    expect(enAnel.work).toBeCloseTo(1, 12);
+
+    // 2. Dobrar a massa no disco (M=4, R=0,5, F=1, d=0, t=2 s)
+    // I dobra (0,50), tau permanece 0,5 N.m, alpha cai pela metade (1 rad/s²),
+    // omega(2)=2 rad/s, theta(2)=2 rad, e K_rot = W = 1 J (cai pela metade no mesmo tempo t=2 s, NÃO dobra!)
+    const massaDobrada = computeDynamics({ geometry: "disco", mass: 4, size: 0.5, axisOffset: 0, force: 1, direction: 1 });
+    const kinM2 = kinematics(massaDobrada.alpha, 2);
+    const enM2 = computeEnergetics(massaDobrada.I, massaDobrada.tau, kinM2.omega, kinM2.theta);
+    expect(massaDobrada).toMatchObject({ I: 0.5, tau: 0.5, alpha: 1 });
+    expect(kinM2).toEqual({ omega: 2, theta: 2 });
+    expect(enM2.kineticEnergy).toBeCloseTo(1, 12);
+    expect(enM2.work).toBeCloseTo(1, 12);
+
+    // 3. Dobrar a força no disco (M=2, R=0,5, F=2, d=0, t=2 s)
+    // I permanece 0,25, tau dobra (1,0 N.m), alpha dobra (4 rad/s²),
+    // omega(2)=8 rad/s, theta(2)=8 rad, e K_rot = W = 8 J (quadruplica!)
+    const forcaDobrada = computeDynamics({ geometry: "disco", mass: 2, size: 0.5, axisOffset: 0, force: 2, direction: 1 });
+    const kinF2 = kinematics(forcaDobrada.alpha, 2);
+    const enF2 = computeEnergetics(forcaDobrada.I, forcaDobrada.tau, kinF2.omega, kinF2.theta);
+    expect(forcaDobrada).toMatchObject({ I: 0.25, tau: 1, alpha: 4 });
+    expect(kinF2).toEqual({ omega: 8, theta: 8 });
+    expect(enF2.kineticEnergy).toBeCloseTo(8, 12);
+    expect(enF2.work).toBeCloseTo(8, 12);
+  });
+
+  it("verifica o Teorema de Steiner (I = I_cm + M*d²) sob mesmo torque e na bancada 3D (mesma força)", () => {
+    // Steiner na bancada 3D (mesma força F=1 N na borda oposta: b = R + d = 1,0 m)
+    const steiner3D = computeDynamics({
+      geometry: "disco",
       mass: 2,
       size: 0.5,
+      axisOffset: 0.5,
       force: 1,
       direction: 1,
     });
-    expect(disco).toMatchObject({ I: 0.25, b: 0.5, tau: 0.5, alpha: 2 });
-    expect(anel).toMatchObject({ I: 0.5, b: 0.5, tau: 0.5, alpha: 1 });
-    expect(kinematics(disco.alpha, 2)).toEqual({ omega: 4, theta: 4 });
-    expect(kinematics(anel.alpha, 2)).toEqual({ omega: 2, theta: 2 });
+    expect(steiner3D.Icm).toBeCloseTo(0.25, 12);
+    expect(steiner3D.Id).toBeCloseTo(0.5, 12);
+    expect(steiner3D.I).toBeCloseTo(0.75, 12);
+    expect(steiner3D.b).toBeCloseTo(1.0, 12);
+    expect(steiner3D.tau).toBeCloseTo(1.0, 12);
+    expect(steiner3D.alpha).toBeCloseTo(4 / 3, 12);
+    const kin3D = kinematics(steiner3D.alpha, 2);
+    const en3D = computeEnergetics(steiner3D.I, steiner3D.tau, kin3D.omega, kin3D.theta);
+    expect(kin3D.omega).toBeCloseTo(8 / 3, 12);
+    expect(kin3D.theta).toBeCloseTo(8 / 3, 12);
+    expect(en3D.kineticEnergy).toBeCloseTo(8 / 3, 12);
+    expect(en3D.work).toBeCloseTo(8 / 3, 12);
+
+    // Steiner sob o mesmo torque do caso central (tau = 0,5 N.m -> F_eq = tau / b = 0,5 N)
+    const steinerMesmoTorque = computeDynamics({
+      geometry: "disco",
+      mass: 2,
+      size: 0.5,
+      axisOffset: 0.5,
+      force: 0.5,
+      direction: 1,
+    });
+    expect(steinerMesmoTorque.I).toBeCloseTo(0.75, 12);
+    expect(steinerMesmoTorque.tau).toBeCloseTo(0.5, 12);
+    expect(steinerMesmoTorque.alpha).toBeCloseTo(2 / 3, 12);
+    const kinEq = kinematics(steinerMesmoTorque.alpha, 2);
+    const enEq = computeEnergetics(steinerMesmoTorque.I, steinerMesmoTorque.tau, kinEq.omega, kinEq.theta);
+    expect(kinEq.omega).toBeCloseTo(4 / 3, 12);
+    expect(kinEq.theta).toBeCloseTo(4 / 3, 12);
+    expect(enEq.kineticEnergy).toBeCloseTo(2 / 3, 12);
+    expect(enEq.work).toBeCloseTo(2 / 3, 12);
   });
 
   it("τ assinado e α = τ/I", () => {

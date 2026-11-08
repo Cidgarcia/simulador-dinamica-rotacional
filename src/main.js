@@ -4,36 +4,47 @@ import {
   Experiment,
   GEOMETRIES,
   LIMITS,
+  MAX_FRAME_DT,
   MAX_SIM_TIME,
   NOISE_LEVELS,
   PLAYBACK_RATES,
   TIME_INSTRUMENT_UNCERTAINTY,
   canvasRotationAngle,
+  computeEnergetics,
+  kinematics,
   sampleExperimentalState,
   validateParams,
 } from './physics.js';
 import { formatFixed, formatNumber, parseDecimal } from './format.js';
 import { createChart, createComparisonChart, createSteinerInertiaChart } from './charts.js';
-import { buildExperimentCsv, downloadCsv } from './export.js';
+import {
+  buildComparisonCsv,
+  buildExperimentCsv,
+  buildSteinerComparisonCsv,
+  downloadCsv,
+  generateDiscreteSamples,
+} from './export.js';
 
 /* ---------------- Estado ---------------- */
 
 const DEFAULTS = {
   geometry: 'disco',
   mass: 2,
-  radius: 0.3,
+  radius: 0.5,
   length: 1,
   axisOffset: 0,
-  force: 0.3,
+  force: 1,
   direction: 1,
 };
 const DECIMALS = { mass: 1, radius: 2, length: 2, axisOffset: 2, force: 2 };
 const SAMPLE_INTERVAL = 0.02; // s simulados entre amostras contínuas dos gráficos
+const STOP_TIMES = [2, 5, 10, 20];
 
 const ui = {
   geometry: DEFAULTS.geometry,
   direction: DEFAULTS.direction,
   rate: 1,
+  stopTime: 20,
   noiseEnabled: false,
   noiseSigmaRel: 0.02,
   sampleDt: 0.2,
@@ -61,8 +72,11 @@ function currentParams() {
 }
 
 const experiment = new Experiment(currentParams());
+let hasStartedRun = false;
 let samples = []; // histórico denso para os gráficos 2D
 let discreteSamples = []; // buffer discreto de coleta experimental para tabela e CSV
+let discreteNoiseDraws = []; // sorteios normais fixos por índice de amostra discreta
+let chartNoiseDraws = []; // sorteios normais fixos por índice de amostra do gráfico
 let latestMeasuredState = null;
 let samplesDirty = true;
 let discreteDirty = true;
@@ -77,11 +91,13 @@ const el = {
   statusChip: $('#status-chip'),
   statusText: $('#status-text'),
   clock: $('#clock-value'),
+  clockMax: $('#clock-max'),
   btnRun: $('#btn-run'),
   runLabel: $('#run-label'),
   runIcon: $('#run-icon'),
   btnReset: $('#btn-reset'),
   btnExportCsv: $('#btn-export-csv'),
+  btnExportCsvStd: $('#btn-export-csv-std'),
   btnView: $('#btn-view'),
   notice: $('#notice'),
   alias: $('#alias-hint'),
@@ -104,6 +120,8 @@ const el = {
   comparison: {
     run: $('#btn-comparison-run'),
     reset: $('#btn-comparison-reset'),
+    exportBr: $('#btn-comparison-export'),
+    exportStd: $('#btn-comparison-export-std'),
     clock: $('#comparison-clock'),
     mass: $('#comparison-mass'),
     radius: $('#comparison-radius'),
@@ -117,6 +135,8 @@ const el = {
   steiner: {
     run: $('#btn-steiner-run'),
     reset: $('#btn-steiner-reset'),
+    exportBr: $('#btn-steiner-export'),
+    exportStd: $('#btn-steiner-export-std'),
     clock: $('#steiner-clock'),
     geometry: $('#steiner-geometry'),
     mass: $('#steiner-mass'),
@@ -215,14 +235,14 @@ function refreshFieldLabels() {
   const dVal = parseDecimal(ui.text.axisOffset);
   el.sizeLabel.innerHTML = isBar ? 'Comprimento <var>L</var>' : 'Raio <var>R</var>';
   el.fields.size.range.setAttribute('aria-label', isBar ? 'Comprimento L em metros (controle deslizante)' : 'Raio R em metros (controle deslizante)');
-  el.fields.size.hint.textContent = `Entre ${fmtLimit(lim.min)} e ${fmtLimit(lim.max)} m · ${isBar ? 'b_cm = L/2 (braço total b = L/2 + d)' : 'b_cm = R (braço total b = R + d)'}`;
+  el.fields.size.hint.textContent = `Entre ${fmtLimit(lim.min)} e ${fmtLimit(lim.max)} m · ${isBar ? 'No centro: braço b_cm = L/2 (com eixo deslocado: b = L/2 + d)' : 'No centro: braço b_cm = R (com eixo deslocado: b = R + d)'}`;
   configureRange(el.fields.size.range, lim);
   el.fields.size.input.value = ui.text[dimKey()];
   const axisDesc = GEOMETRIES[ui.geometry].eixo;
   el.legendAxis.textContent =
     Number.isFinite(dVal) && dVal > 0
-      ? `${axisDesc} (deslocado de d = ${formatNumber(dVal, 3)} m do CM).`
-      : `${axisDesc} (passando pelo CM, d = 0 m).`;
+      ? `${axisDesc} (afastado d = ${formatNumber(dVal, 3)} m do centro de massa).`
+      : `${axisDesc} (passando pelo centro de massa, d = 0 m).`;
 }
 
 function syncRangeFromText(field) {
@@ -249,10 +269,143 @@ function showNotice(message, tone = 'info', persist = false) {
   if (!persist) noticeTimer = setTimeout(() => el.notice.classList.remove('is-visible'), 6000);
 }
 
+/**
+ * Reconstrói as amostras dos gráficos (a cada 0,02 s) e da tabela/CSV (a cada Δt = 0,20 s ou 0,50 s)
+ * exatamente nos instantes analíticos múltiplos do intervalo, sem erro acumulado de FPS.
+ */
+function syncSamplesToTime() {
+  if (!hasStartedRun || !experiment.dynamics) {
+    samples = [];
+    discreteSamples = [];
+    latestMeasuredState = sampleExperimentalState(experiment.state, {
+      enabled: ui.noiseEnabled,
+      sigmaRel: ui.noiseSigmaRel,
+    });
+    samplesDirty = true;
+    discreteDirty = true;
+    return;
+  }
+
+  const curT = experiment.time;
+  const dyn = experiment.dynamics;
+
+  // 1. Amostras discretas exatas para tabela e CSV (t = 0, Δt, 2Δt, ...)
+  discreteSamples = generateDiscreteSamples({
+    dynamics: dyn,
+    upToTime: curT,
+    sampleDt: ui.sampleDt,
+    noiseEnabled: ui.noiseEnabled,
+    noiseSigmaRel: ui.noiseSigmaRel,
+    noiseDraws: discreteNoiseDraws,
+  });
+  discreteDirty = true;
+
+  // 2. Amostras densas para os gráficos 2D (t = 0, 0.02, 0.04, ...)
+  const chartSteps = Math.floor((curT + 1e-9) / SAMPLE_INTERVAL);
+  const nextSamples = [];
+  for (let k = 0; k <= chartSteps; k++) {
+    const t = Number((k * SAMPLE_INTERVAL).toFixed(6));
+    const { omega, theta } = kinematics(dyn.alpha, t);
+    const energetics = computeEnergetics(dyn.I, dyn.tau, omega, theta);
+    const realState = { t, ...dyn, omega, theta, ...energetics };
+
+    let draw = chartNoiseDraws[k];
+    if (!draw) {
+      const drawValues = [];
+      sampleExperimentalState(realState, {
+        enabled: true,
+        sigmaRel: 0.02,
+        rng: () => {
+          const v = Math.random();
+          drawValues.push(v);
+          return v;
+        },
+      });
+      draw = drawValues;
+      chartNoiseDraws[k] = draw;
+    }
+    let idx = 0;
+    const measured = sampleExperimentalState(realState, {
+      enabled: ui.noiseEnabled,
+      sigmaRel: ui.noiseSigmaRel,
+      rng: () => draw[idx++ % draw.length] ?? 0.5,
+    });
+
+    nextSamples.push({
+      t,
+      omega,
+      theta,
+      alpha: dyn.alpha,
+      omegaMeasured: ui.noiseEnabled ? measured.omegaMeasured : omega,
+      thetaMeasured: ui.noiseEnabled ? measured.thetaMeasured : theta,
+      alphaMeasured: ui.noiseEnabled ? measured.alphaMeasured : dyn.alpha,
+      kineticEnergy: energetics.kineticEnergy,
+      work: energetics.work,
+    });
+  }
+
+  // Se o tempo atual estiver entre dois passos de 0,02 s, acrescenta o ponto exato final
+  const lastChartT = nextSamples.length ? nextSamples[nextSamples.length - 1].t : -1;
+  if (curT - lastChartT > 1e-6) {
+    const s = experiment.state;
+    const measured = sampleExperimentalState(s, {
+      enabled: ui.noiseEnabled,
+      sigmaRel: ui.noiseSigmaRel,
+    });
+    nextSamples.push({
+      t: s.t,
+      omega: s.omega,
+      theta: s.theta,
+      alpha: s.alpha,
+      omegaMeasured: ui.noiseEnabled ? measured.omegaMeasured : s.omega,
+      thetaMeasured: ui.noiseEnabled ? measured.thetaMeasured : s.theta,
+      alphaMeasured: ui.noiseEnabled ? measured.alphaMeasured : s.alpha,
+      kineticEnergy: s.kineticEnergy,
+      work: s.work,
+    });
+  }
+
+  samples = nextSamples;
+  samplesDirty = true;
+
+  // Sincroniza o mostrador atual com a última amostra discreta quando estiver sobre um múltiplo exato de Δt
+  const lastDisc = discreteSamples[discreteSamples.length - 1];
+  const s = experiment.state;
+  if (lastDisc && s && Math.abs(lastDisc.t_s - s.t) < 1e-6) {
+    const sigmaOmega = ui.noiseEnabled ? ui.noiseSigmaRel * Math.max(Math.abs(s.omega), 0.05) : 0;
+    const sigmaTheta = ui.noiseEnabled ? ui.noiseSigmaRel * Math.max(Math.abs(s.theta), 0.05) : 0;
+    const sigmaAlpha = ui.noiseEnabled ? Math.abs(s.alpha) * ui.noiseSigmaRel : 0;
+    const sigmaKineticEnergy = ui.noiseEnabled ? s.I * Math.abs(s.omega) * sigmaOmega : 0;
+    const sigmaWork = ui.noiseEnabled ? Math.abs(s.tau) * sigmaTheta : 0;
+    latestMeasuredState = {
+      ...s,
+      omegaMeasured: lastDisc.omega_medido_rads,
+      thetaMeasured: lastDisc.theta_medido_rad,
+      alphaMeasured: lastDisc.alfa_medido_rads2,
+      kineticEnergyMeasured: lastDisc.energia_cinetica_medida_J,
+      workMeasured: lastDisc.trabalho_medido_J,
+      sigmaOmega,
+      sigmaTheta,
+      sigmaAlpha,
+      sigmaKineticEnergy,
+      sigmaWork,
+      sigmaTime: ui.noiseEnabled ? TIME_INSTRUMENT_UNCERTAINTY : 0,
+    };
+  } else {
+    latestMeasuredState = sampleExperimentalState(s, {
+      enabled: ui.noiseEnabled,
+      sigmaRel: ui.noiseSigmaRel,
+    });
+  }
+}
+
 function resetRun() {
   experiment.reset();
+  hasStartedRun = false;
   samples = [];
   discreteSamples = [];
+  discreteNoiseDraws = [];
+  chartNoiseDraws = [];
   latestMeasuredState = sampleExperimentalState(experiment.state, {
     enabled: ui.noiseEnabled,
     sigmaRel: ui.noiseSigmaRel,
@@ -312,9 +465,9 @@ function initForm() {
   configureRange(el.fields.mass.range, LIMITS.mass);
   configureRange(el.fields.axisOffset.range, LIMITS.axisOffset);
   configureRange(el.fields.force.range, LIMITS.force);
-  el.fields.mass.hint.textContent = `Entre ${fmtLimit(LIMITS.mass.min)} e ${fmtLimit(LIMITS.mass.max)} kg (deve ser maior que zero)`;
-  el.fields.axisOffset.hint.textContent = `Entre 0 e ${fmtLimit(LIMITS.axisOffset.max)} m · d = 0 m mantém o eixo no CM (Steiner: I = Icm + Md²)`;
-  el.fields.force.hint.textContent = `Entre 0 e ${fmtLimit(LIMITS.force.max)} N (F = 0 é permitido)`;
+  el.fields.mass.hint.textContent = `Entre ${fmtLimit(LIMITS.mass.min)} e ${fmtLimit(LIMITS.mass.max)} kg · Quanto maior a massa, maior a inércia I`;
+  el.fields.axisOffset.hint.textContent = `Entre 0 e ${fmtLimit(LIMITS.axisOffset.max)} m · d = 0 m mantém o eixo no centro (Steiner: I = Icm + Md²)`;
+  el.fields.force.hint.textContent = `Entre 0 e ${fmtLimit(LIMITS.force.max)} N · Força tangencial aplicada na borda`;
   el.fields.mass.input.value = ui.text.mass;
   el.fields.axisOffset.input.value = ui.text.axisOffset;
   el.fields.force.input.value = ui.text.force;
@@ -348,21 +501,27 @@ function initForm() {
       updateControls();
     })
   );
+  document.querySelectorAll('input[name="stopTime"]').forEach((r) =>
+    r.addEventListener('change', () => {
+      if (!r.checked) return;
+      const v = Number(r.value);
+      ui.stopTime = STOP_TIMES.includes(v) ? v : 20;
+      if (el.clockMax) el.clockMax.textContent = `/ ${ui.stopTime} s`;
+      showNotice(`Pausa automática programada para t = ${formatFixed(ui.stopTime, 2)} s.`, 'info');
+    })
+  );
   if (el.noiseToggle) {
     el.noiseToggle.addEventListener('change', () => {
       ui.noiseEnabled = el.noiseToggle.checked;
       if (el.noiseOptions) el.noiseOptions.hidden = !ui.noiseEnabled;
-      latestMeasuredState = sampleExperimentalState(experiment.state, {
-        enabled: ui.noiseEnabled,
-        sigmaRel: ui.noiseSigmaRel,
-      });
-      samplesDirty = true;
+      syncSamplesToTime();
       updateReadouts();
       updateCharts();
+      updateSampleTable();
       showNotice(
         ui.noiseEnabled
-          ? `Modo experimental ativo: ruído gaussiano de ${(ui.noiseSigmaRel * 100).toFixed(0)}% nos sensores (Box-Muller).`
-          : 'Modo determinístico ativo (sem ruído de sensor).',
+          ? `Incerteza experimental ativada: simulando variações de ±${(ui.noiseSigmaRel * 100).toFixed(0)}% nas leituras do sensor.`
+          : 'Modo ideal ativado: exibindo e exportando valores teóricos exatos (sem ruído).',
         'info'
       );
     });
@@ -372,13 +531,12 @@ function initForm() {
       if (!r.checked) return;
       const v = Number(r.value);
       ui.noiseSigmaRel = NOISE_LEVELS.includes(v) ? v : 0.02;
-      latestMeasuredState = sampleExperimentalState(experiment.state, {
-        enabled: ui.noiseEnabled,
-        sigmaRel: ui.noiseSigmaRel,
-      });
+      syncSamplesToTime();
       updateReadouts();
+      updateCharts();
+      updateSampleTable();
       if (ui.noiseEnabled) {
-        showNotice(`Incerteza relativa do sensor ajustada para ±${(ui.noiseSigmaRel * 100).toFixed(0)}%.`, 'info');
+        showNotice(`Oscilação média do sensor ajustada para ±${(ui.noiseSigmaRel * 100).toFixed(0)}%.`, 'info');
       }
     })
   );
@@ -387,7 +545,7 @@ function initForm() {
       if (!r.checked) return;
       const v = Number(r.value);
       ui.sampleDt = DISCRETE_SAMPLE_RATES.includes(v) ? v : 0.2;
-      discreteDirty = true;
+      syncSamplesToTime();
       updateSampleTable();
     })
   );
@@ -399,8 +557,8 @@ function initForm() {
       updateSampleTable();
       showNotice(
         ui.blindMode
-          ? 'Modo Cego ativo: valores teóricos ocultados na tabela e no CSV para elaboração de relatório.'
-          : 'Modo completo ativo: previsões teóricas e leituras experimentais visíveis.',
+          ? 'Modo Cego ativo: valores teóricos ocultados na tabela e no CSV para prática de relatório.'
+          : 'Modo Completo ativo: valores teóricos e medidos visíveis na tabela e no CSV.',
         'info'
       );
     });
@@ -410,59 +568,17 @@ function initForm() {
 
 /* ---------------- Execução ---------------- */
 
-function pushSample(force = false) {
-  const s = experiment.state;
-  if (!s) return;
-  const measured = sampleExperimentalState(s, {
-    enabled: ui.noiseEnabled,
-    sigmaRel: ui.noiseSigmaRel,
-  });
-  latestMeasuredState = measured;
-
-  const last = samples[samples.length - 1];
-  if (!last || force || s.t - last.t >= SAMPLE_INTERVAL - 1e-9) {
-    if (!last || Math.abs(s.t - last.t) > 1e-9) {
-      samples.push({
-        t: s.t,
-        omega: s.omega,
-        theta: s.theta,
-        alpha: s.alpha,
-        omegaMeasured: measured.omegaMeasured,
-        thetaMeasured: measured.thetaMeasured,
-        alphaMeasured: measured.alphaMeasured,
-        kineticEnergy: s.kineticEnergy,
-        work: s.work,
-      });
-      samplesDirty = true;
-    }
-  }
-
-  const lastDisc = discreteSamples[discreteSamples.length - 1];
-  if (!lastDisc || force || s.t - lastDisc.t_s >= ui.sampleDt - 1e-6) {
-    if (!lastDisc || Math.abs(s.t - lastDisc.t_s) > 1e-6) {
-      discreteSamples.push({
-        t_s: s.t,
-        theta_teorico_rad: s.theta,
-        theta_medido_rad: measured.thetaMeasured,
-        omega_teorico_rads: s.omega,
-        omega_medido_rads: measured.omegaMeasured,
-        alfa_medido_rads2: measured.alphaMeasured,
-        energia_cinetica_J: ui.noiseEnabled ? measured.kineticEnergyMeasured : s.kineticEnergy,
-        trabalho_J: s.work,
-      });
-      discreteDirty = true;
-    }
-  }
-}
-
 el.btnRun.addEventListener('click', () => {
   if (experiment.status === 'running') {
     experiment.pause();
   } else if (experiment.start()) {
-    if (samples.length === 0) pushSample(true);
+    hasStartedRun = true;
+    syncSamplesToTime();
     el.notice.classList.remove('is-visible');
   }
   updateControls();
+  updateReadouts();
+  updateCharts();
   updateSampleTable();
 });
 
@@ -477,8 +593,9 @@ el.btnReset.addEventListener('click', () => {
   updateSampleTable();
 });
 
-el.btnExportCsv.addEventListener('click', () => {
+function handleExportMainCsv(decimalSeparator = ',') {
   if (!discreteSamples.length || !experiment.dynamics) return;
+  syncSamplesToTime();
   const geometry = GEOMETRIES[ui.geometry].id;
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   const csv = buildExperimentCsv({
@@ -488,16 +605,26 @@ el.btnExportCsv.addEventListener('click', () => {
     noiseEnabled: ui.noiseEnabled,
     noiseSigmaRel: ui.noiseSigmaRel,
     blindMode: ui.blindMode,
+    decimalSeparator,
+    columnSeparator: ';',
   });
-  const suffix = ui.blindMode ? '_modo_cego' : '';
-  downloadCsv(`dados_rotacao_${geometry}${suffix}_${stamp}.csv`, csv);
+  const modeSuffix = ui.blindMode ? '_modo_cego' : '';
+  const fmtSuffix = decimalSeparator === ',' ? '_excel_br' : '_padrao';
+  downloadCsv(`dados_rotacao_${geometry}${modeSuffix}${fmtSuffix}_${stamp}.csv`, csv);
   showNotice(
-    ui.blindMode
-      ? 'CSV exportado em Modo Cego (apenas leituras de sensor para relatório).'
-      : 'Dados experimentais exportados em CSV com metadados comentados e unidades SI.',
+    decimalSeparator === ','
+      ? 'CSV exportado para Excel / LibreOffice Calc Brasil (separador ; e vírgula decimal).'
+      : 'CSV exportado em formato científico padrão (separador ; e ponto decimal).',
     'info'
   );
-});
+}
+
+if (el.btnExportCsv) {
+  el.btnExportCsv.addEventListener('click', () => handleExportMainCsv(','));
+}
+if (el.btnExportCsvStd) {
+  el.btnExportCsvStd.addEventListener('click', () => handleExportMainCsv('.'));
+}
 
 el.btnView.addEventListener('click', () => lab?.resetView());
 
@@ -524,7 +651,7 @@ function updateControls() {
     el.statusText.textContent = `Em execução · ${rateTxt}`;
   } else if (s === 'paused') {
     setRunButton('play', 'Continuar', false);
-    el.statusText.textContent = 'Pausado';
+    el.statusText.textContent = `Pausado em ${formatFixed(experiment.time, 2)} s`;
   } else if (s === 'finished') {
     setRunButton('done', 'Concluído', true);
     el.statusText.textContent = `Concluído · ${MAX_SIM_TIME} s`;
@@ -533,8 +660,10 @@ function updateControls() {
     el.statusText.textContent = `Pronto · ${rateTxt}`;
   }
   el.statusChip.dataset.status = status;
-  el.btnReset.disabled = experiment.time === 0 && s === 'idle';
-  el.btnExportCsv.disabled = discreteSamples.length === 0 || !valid;
+  el.btnReset.disabled = experiment.time === 0 && s === 'idle' && !hasStartedRun;
+  const noSamples = discreteSamples.length === 0 || !valid;
+  if (el.btnExportCsv) el.btnExportCsv.disabled = noSamples;
+  if (el.btnExportCsvStd) el.btnExportCsvStd.disabled = noSamples;
 }
 
 /* ---------------- Saídas ---------------- */
@@ -560,17 +689,17 @@ function updateReadouts() {
   );
   setText(
     el.outputs['t-sub'],
-    ui.noiseEnabled ? 'Base de tempo c/ incerteza instrumental' : 'Relógio determinístico'
+    ui.noiseEnabled ? 'Cronômetro c/ incerteza ±0,01 s' : 'Tempo exato da simulação'
   );
   if (!s) {
     ['I', 'tau', 'alpha', 'omega', 'theta', 'krot', 'work'].forEach((k) => setText(el.outputs[k], '—'));
     setText(el.outputs['inertia-sub'], 'Icm = — · Md² = —');
-    setText(el.outputs['torque-sub'], 'b = — m');
+    setText(el.outputs['torque-sub'], 'Braço b = — m');
     setText(el.outputs['alpha-sub'], '—');
     setText(el.outputs['omega-sub'], '—');
     setText(el.outputs.turns, '—');
     setText(el.outputs['krot-sub'], 'K_rot = ½ I ω²');
-    setText(el.outputs['power-sub'], 'P = — W');
+    setText(el.outputs['power-sub'], 'Potência P = — W');
     return;
   }
 
@@ -586,8 +715,8 @@ function updateReadouts() {
   setText(
     el.outputs['torque-sub'],
     s.axisOffset > 0
-      ? `b = ${formatFixed(s.b, 2)} m (${formatFixed(s.bCm, 2)} + d)`
-      : `b = ${formatFixed(s.b, 2)} m (d = 0,00)`
+      ? `Braço b = ${formatFixed(s.b, 2)} m (${formatFixed(s.bCm, 2)} + d)`
+      : `Braço b = ${formatFixed(s.b, 2)} m (d = 0,00)`
   );
 
   const alphaDisplay = ui.noiseEnabled ? m.alphaMeasured : s.alpha;
@@ -598,12 +727,12 @@ function updateReadouts() {
   setText(el.outputs.alpha, formatWithUncertainty(alphaDisplay, m.sigmaAlpha, 2));
   setText(
     el.outputs['alpha-sub'],
-    ui.noiseEnabled ? `Teórico: ${formatFixed(s.alpha, 2)} rad/s²` : 'α = τ / I (constante)'
+    ui.noiseEnabled ? `Valor teórico: ${formatFixed(s.alpha, 2)} rad/s²` : 'α = τ / I (constante)'
   );
   setText(el.outputs.omega, formatWithUncertainty(omegaDisplay, m.sigmaOmega, 2));
   setText(
     el.outputs['omega-sub'],
-    ui.noiseEnabled ? `Teórico: ${formatFixed(s.omega, 2)} rad/s` : 'ω(t) = α t'
+    ui.noiseEnabled ? `Valor teórico: ${formatFixed(s.omega, 2)} rad/s` : 'ω(t) = α·t'
   );
   setText(el.outputs.theta, formatWithUncertainty(thetaDisplay, m.sigmaTheta, 2));
   const turns = s.theta / (2 * Math.PI);
@@ -613,11 +742,11 @@ function updateReadouts() {
   setText(
     el.outputs['krot-sub'],
     ui.noiseEnabled
-      ? `K_rot,med = ½ I ω_med² (σ_K = I ω σ_ω)`
-      : `K_rot = ½ I ω²`
+      ? `Valor teórico: ${formatFixed(s.kineticEnergy, 2)} J`
+      : `K_rot = ½·I·ω²`
   );
   setText(el.outputs.work, formatFixed(s.work, 2));
-  setText(el.outputs['power-sub'], `P = ${formatFixed(s.power, 2)} W (τ·ω)`);
+  setText(el.outputs['power-sub'], `Potência P = ${formatFixed(s.power, 2)} W (τ·ω)`);
 }
 
 function eq(html) {
@@ -638,14 +767,14 @@ function renderEquations() {
   }
   el.equations.append(
     eq(
-      `<span class="eq-k">${g.formulaI}</span> = ${formatFixed(d.Icm, 3)} + ${formatFixed(d.Id, 3)} = <b>${formatFixed(d.I, 3)}</b> kg·m²`
+      `<span class="eq-k">Inércia (${g.formulaI})</span> = ${formatFixed(d.Icm, 3)} + ${formatFixed(d.Id, 3)} = <b>${formatFixed(d.I, 3)}</b> kg·m²`
     ),
     eq(
-      `<span class="eq-k">τ = (r × F)<sub>eixo</sub> = ${ui.direction > 0 ? '+' : '−'}b·F</span>, ${g.formulaB} = ${formatFixed(d.b, 2)} m ⇒ τ = <b>${formatFixed(d.tau, 3)}</b> N·m`
+      `<span class="eq-k">Torque (τ = ${ui.direction > 0 ? '+' : '−'}b·F)</span>, com ${g.formulaB} = ${formatFixed(d.b, 2)} m ⇒ τ = <b>${formatFixed(d.tau, 3)}</b> N·m`
     ),
-    eq(`<span class="eq-k">α = τ / I</span> = <b>${formatFixed(d.alpha, 2)}</b> rad/s²`),
+    eq(`<span class="eq-k">Aceleração (α = τ / I)</span> = ${formatFixed(d.tau, 3)} / ${formatFixed(d.I, 3)} = <b>${formatFixed(d.alpha, 2)}</b> rad/s²`),
     eq(
-      `<span class="eq-k">K<sub>rot</sub> = ½ I ω² = W = τ θ</span> ⇒ ½·(${formatFixed(d.I, 3)})·(${formatFixed(s.omega, 2)})² = (${formatFixed(d.tau, 3)})·(${formatFixed(s.theta, 2)}) = <b data-eq-energy>${formatFixed(s.kineticEnergy, 2)}</b> J`
+      `<span class="eq-k">Energia (K<sub>rot</sub> = ½·I·ω² = W = τ·θ)</span> ⇒ ½·(${formatFixed(d.I, 3)})·(${formatFixed(s.omega, 2)})² = (${formatFixed(d.tau, 3)})·(${formatFixed(s.theta, 2)}) = <b data-eq-energy>${formatFixed(s.kineticEnergy, 2)}</b> J`
     )
   );
 }
@@ -656,7 +785,7 @@ function updateDynamicEquationEnergy() {
   if (!s || !d || !el.equations) return;
   const lastEq = el.equations.lastElementChild;
   if (!lastEq) return;
-  lastEq.innerHTML = `<span class="eq-k">K<sub>rot</sub> = ½ I ω² = W = τ θ</span> ⇒ ½·(${formatFixed(d.I, 3)})·(${formatFixed(s.omega, 2)})² = (${formatFixed(d.tau, 3)})·(${formatFixed(s.theta, 2)}) = <b>${formatFixed(s.kineticEnergy, 2)}</b> J`;
+  lastEq.innerHTML = `<span class="eq-k">Energia (K<sub>rot</sub> = ½·I·ω² = W = τ·θ)</span> ⇒ ½·(${formatFixed(d.I, 3)})·(${formatFixed(s.omega, 2)})² = (${formatFixed(d.tau, 3)})·(${formatFixed(s.theta, 2)}) = <b>${formatFixed(s.kineticEnergy, 2)}</b> J`;
 }
 
 function updateSampleTable() {
@@ -672,13 +801,14 @@ function updateSampleTable() {
     const tr = document.createElement('tr');
     tr.className = 'table-empty-row';
     const colSpan = ui.blindMode ? 5 : 8;
-    tr.innerHTML = `<td colspan="${colSpan}">Nenhuma amostra registrada. Pressione <em>Iniciar</em> para coletar pares ordenados.</td>`;
+    tr.innerHTML = `<td colspan="${colSpan}">Nenhuma amostra registrada. Pressione <em>Iniciar</em> para coletar os dados em função do tempo.</td>`;
     el.sampleTableBody.appendChild(tr);
     return;
   }
   const frag = document.createDocumentFragment();
   for (const row of discreteSamples) {
     const tr = document.createElement('tr');
+    const kVal = ui.blindMode ? row.energia_cinetica_medida_J : row.energia_cinetica_J;
     const cells = [
       { txt: formatFixed(row.t_s, 2), theoretical: false },
       { txt: formatFixed(row.theta_teorico_rad, 3), theoretical: true },
@@ -686,7 +816,7 @@ function updateSampleTable() {
       { txt: formatFixed(row.omega_teorico_rads, 3), theoretical: true },
       { txt: formatFixed(row.omega_medido_rads, 3), theoretical: false },
       { txt: formatFixed(row.alfa_medido_rads2, 3), theoretical: false },
-      { txt: formatFixed(row.energia_cinetica_J, 3), theoretical: false },
+      { txt: formatFixed(kVal, 3), theoretical: false },
       { txt: formatFixed(row.trabalho_J, 3), theoretical: true },
     ];
     for (const c of cells) {
@@ -716,8 +846,8 @@ function updateAliasHint() {
     if (show) {
       el.alias.textContent =
         ui.rate > 0.25
-          ? 'Giro rápido: a animação pode parecer lenta, parada ou invertida por amostragem visual (efeito estroboscópico). Reduza a reprodução para 0,25× ou 0,5×. Os valores numéricos permanecem corretos.'
-          : 'Giro rápido: a animação pode parecer lenta ou invertida por amostragem visual. Os valores numéricos e os gráficos permanecem corretos.';
+          ? 'Giro muito rápido: a roda pode parecer girar devagar ou ao contrário na tela (como rodas de carro em vídeos). Use 0,25× ou 0,5× para ver em câmera lenta. Os cálculos e gráficos continuam exatos.'
+          : 'Giro muito rápido: a animação pode sofrer efeito visual de câmera, mas todos os números e gráficos continuam exatos.';
     }
   }
 }
@@ -936,7 +1066,7 @@ const comparisonCharts = [
     series: [{ key: 'diskTheta', color: '#38d6f5' }, { key: 'ringTheta', color: '#ffb547' }],
   }),
 ];
-const comparison = { disk: null, ring: null, samples: [], dirty: true };
+const comparison = { disk: null, ring: null, samples: [], dirty: true, hasStarted: false };
 
 function comparisonParams(geometry) {
   return {
@@ -958,6 +1088,49 @@ function setCompareText(key, value) {
   if (node && node.textContent !== value) node.textContent = value;
 }
 
+function syncComparisonSamples() {
+  const disk = comparison.disk;
+  const ring = comparison.ring;
+  if (!disk?.dynamics || !ring?.dynamics || !comparison.hasStarted) {
+    comparison.samples = [];
+    comparison.dirty = true;
+    return;
+  }
+  const curT = disk.time;
+  const steps = Math.floor((curT + 1e-9) / SAMPLE_INTERVAL);
+  const next = [];
+  for (let k = 0; k <= steps; k++) {
+    const t = Number((k * SAMPLE_INTERVAL).toFixed(6));
+    const dKin = kinematics(disk.dynamics.alpha, t);
+    const rKin = kinematics(ring.dynamics.alpha, t);
+    next.push({
+      t,
+      diskAlpha: disk.dynamics.alpha,
+      ringAlpha: ring.dynamics.alpha,
+      diskOmega: dKin.omega,
+      ringOmega: rKin.omega,
+      diskTheta: dKin.theta,
+      ringTheta: rKin.theta,
+    });
+  }
+  const lastT = next.length ? next[next.length - 1].t : -1;
+  if (curT - lastT > 1e-6) {
+    const ds = disk.state;
+    const rs = ring.state;
+    next.push({
+      t: ds.t,
+      diskAlpha: ds.alpha,
+      ringAlpha: rs.alpha,
+      diskOmega: ds.omega,
+      ringOmega: rs.omega,
+      diskTheta: ds.theta,
+      ringTheta: rs.theta,
+    });
+  }
+  comparison.samples = next;
+  comparison.dirty = true;
+}
+
 function updateComparison() {
   const diskState = comparison.disk?.state;
   const ringState = comparison.ring?.state;
@@ -970,6 +1143,8 @@ function updateComparison() {
     drawComparisonBody(el.comparison.ringCanvas, 'anel', 0, { force: 0, direction: 1 });
     el.comparison.run.textContent = 'Iniciar comparação';
     el.comparison.run.disabled = true;
+    if (el.comparison.exportBr) el.comparison.exportBr.disabled = true;
+    if (el.comparison.exportStd) el.comparison.exportStd.disabled = true;
     if (comparison.dirty) {
       comparison.dirty = false;
       comparisonCharts.forEach((chart) => chart.setSamples([]));
@@ -994,6 +1169,9 @@ function updateComparison() {
   const status = comparisonStatus();
   el.comparison.run.textContent = status === 'running' ? 'Pausar comparação' : status === 'paused' ? 'Continuar comparação' : status === 'finished' ? 'Concluída' : 'Iniciar comparação';
   el.comparison.run.disabled = status === 'finished';
+  const canExport = comparison.hasStarted && comparison.disk.dynamics !== null;
+  if (el.comparison.exportBr) el.comparison.exportBr.disabled = !canExport;
+  if (el.comparison.exportStd) el.comparison.exportStd.disabled = !canExport;
   if (comparison.dirty) {
     comparison.dirty = false;
     comparisonCharts.forEach((chart) => chart.setSamples(comparison.samples));
@@ -1013,6 +1191,7 @@ function resetComparison(message = '') {
     comparison.disk = null;
     comparison.ring = null;
     comparison.samples = [];
+    comparison.hasStarted = false;
     comparison.dirty = true;
     const errMsg = diskVal.errors.mass || diskVal.errors.size || diskVal.errors.force || 'Use massa e raio positivos dentro dos limites, e força entre 0 e 5 N.';
     el.comparison.notice.textContent = `Parâmetros inválidos na comparação: ${errMsg}`;
@@ -1022,30 +1201,11 @@ function resetComparison(message = '') {
   comparison.disk = new Experiment(diskParams);
   comparison.ring = new Experiment(ringParams);
   comparison.samples = [];
+  comparison.hasStarted = false;
   comparison.dirty = true;
   el.comparison.notice.textContent = message;
   updateComparison();
   return true;
-}
-
-function pushComparisonSample(force = false) {
-  const disk = comparison.disk?.state;
-  const ring = comparison.ring?.state;
-  if (!disk || !ring) return;
-  const last = comparison.samples.at(-1);
-  if (last && Math.abs(disk.t - last.t) < 1e-9) return;
-  if (force || !last || disk.t - last.t >= SAMPLE_INTERVAL) {
-    comparison.samples.push({
-      t: disk.t,
-      diskAlpha: disk.alpha,
-      ringAlpha: ring.alpha,
-      diskOmega: disk.omega,
-      ringOmega: ring.omega,
-      diskTheta: disk.theta,
-      ringTheta: ring.theta,
-    });
-    comparison.dirty = true;
-  }
 }
 
 function toggleComparison() {
@@ -1054,14 +1214,45 @@ function toggleComparison() {
     comparison.disk.pause(); comparison.ring.pause();
     el.comparison.notice.textContent = 'Comparação pausada.';
   } else if (comparison.disk.start() && comparison.ring.start()) {
-    if (!comparison.samples.length) pushComparisonSample(true);
-    el.comparison.notice.textContent = 'Relógio comum em execução: compare as curvas e os valores coloridos.';
+    comparison.hasStarted = true;
+    syncComparisonSamples();
+    el.comparison.notice.textContent = 'Relógio comum em execução: compare as curvas e os valores de cada corpo.';
   }
   updateComparison();
 }
 
+function handleExportComparisonCsv(decimalSeparator = ',') {
+  if (!comparison.disk?.dynamics || !comparison.ring?.dynamics || !comparison.hasStarted) return;
+  const p = comparison.disk.params;
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const csv = buildComparisonCsv({
+    mass: p.mass,
+    radius: p.size,
+    force: p.force,
+    direction: p.direction,
+    diskDynamics: comparison.disk.dynamics,
+    ringDynamics: comparison.ring.dynamics,
+    upToTime: comparison.disk.time,
+    sampleDt: ui.sampleDt,
+    decimalSeparator,
+    columnSeparator: ';',
+  });
+  const fmtSuffix = decimalSeparator === ',' ? '_excel_br' : '_padrao';
+  downloadCsv(`comparacao_disco_vs_anel${fmtSuffix}_${stamp}.csv`, csv);
+  el.comparison.notice.textContent =
+    decimalSeparator === ','
+      ? 'CSV da comparação Disco × Anel exportado para Excel / Calc Brasil (; e vírgula decimal).'
+      : 'CSV da comparação Disco × Anel exportado em formato padrão (ponto decimal).';
+}
+
 el.comparison.run.addEventListener('click', toggleComparison);
 el.comparison.reset.addEventListener('click', () => resetComparison('Comparação reiniciada em t = 0 s.'));
+if (el.comparison.exportBr) {
+  el.comparison.exportBr.addEventListener('click', () => handleExportComparisonCsv(','));
+}
+if (el.comparison.exportStd) {
+  el.comparison.exportStd.addEventListener('click', () => handleExportComparisonCsv('.'));
+}
 [el.comparison.mass, el.comparison.radius, el.comparison.force, el.comparison.direction].forEach((input) => {
   if (!input) return;
   const handler = () => resetComparison('Parâmetros da comparação atualizados (reiniciado em t = 0 s).');
@@ -1082,7 +1273,7 @@ const steinerTimeCharts = [
     series: [{ key: 'centralTheta', color: '#38d6f5' }, { key: 'displacedTheta', color: '#ffb547' }],
   }),
 ];
-const steiner = { central: null, displaced: null, samples: [], dirty: true };
+const steiner = { central: null, displaced: null, samples: [], dirty: true, hasStarted: false };
 
 function steinerParams(axisOffset) {
   const geometry = el.steiner.geometry?.value ?? 'disco';
@@ -1118,6 +1309,45 @@ function refreshSteinerSizeLimits() {
   }
 }
 
+function syncSteinerSamples() {
+  const c = steiner.central;
+  const d = steiner.displaced;
+  if (!c?.dynamics || !d?.dynamics || !steiner.hasStarted) {
+    steiner.samples = [];
+    steiner.dirty = true;
+    return;
+  }
+  const curT = c.time;
+  const steps = Math.floor((curT + 1e-9) / SAMPLE_INTERVAL);
+  const next = [];
+  for (let k = 0; k <= steps; k++) {
+    const t = Number((k * SAMPLE_INTERVAL).toFixed(6));
+    const cKin = kinematics(c.dynamics.alpha, t);
+    const dKin = kinematics(d.dynamics.alpha, t);
+    next.push({
+      t,
+      centralOmega: cKin.omega,
+      displacedOmega: dKin.omega,
+      centralTheta: cKin.theta,
+      displacedTheta: dKin.theta,
+    });
+  }
+  const lastT = next.length ? next[next.length - 1].t : -1;
+  if (curT - lastT > 1e-6) {
+    const cs = c.state;
+    const ds = d.state;
+    next.push({
+      t: cs.t,
+      centralOmega: cs.omega,
+      displacedOmega: ds.omega,
+      centralTheta: cs.theta,
+      displacedTheta: ds.theta,
+    });
+  }
+  steiner.samples = next;
+  steiner.dirty = true;
+}
+
 function updateSteinerComparison() {
   const cState = steiner.central?.state;
   const dState = steiner.displaced?.state;
@@ -1132,6 +1362,8 @@ function updateSteinerComparison() {
     drawComparisonBody(el.steiner.displacedCanvas, geo, 0, { force: 0, direction: 1, axisOffset: 0 });
     el.steiner.run.textContent = 'Iniciar comparação de Steiner';
     el.steiner.run.disabled = true;
+    if (el.steiner.exportBr) el.steiner.exportBr.disabled = true;
+    if (el.steiner.exportStd) el.steiner.exportStd.disabled = true;
     if (steiner.dirty) {
       steiner.dirty = false;
       steinerInertiaChart.setConfig(null);
@@ -1159,20 +1391,21 @@ function updateSteinerComparison() {
   setSteinerText('displaced-kin', `${formatFixed(dState.omega, 2)} rad/s · ${formatFixed(dState.theta, 2)} rad`);
   setSteinerText('displaced-energy', `${formatFixed(dState.kineticEnergy, 2)} J`);
 
-  const visForce = torqueOverride > 0 ? Math.min(torqueOverride * 2, 5) : 0;
+  const visForceCentral = torqueOverride > 0 && cState.b > 0 ? Math.min(torqueOverride / cState.b, 5) : 0;
+  const visForceDisplaced = torqueOverride > 0 && dState.b > 0 ? Math.min(torqueOverride / dState.b, 5) : 0;
   drawComparisonBody(el.steiner.centralCanvas, geometry, cState.theta, {
-    force: visForce,
+    force: visForceCentral,
     direction,
     axisOffset: 0,
     bCm: cState.bCm,
-    subtitle: `d = 0 m • I = ${formatNumber(cState.I, 3)} kg·m² • α = ${formatNumber(cState.alpha, 3)} rad/s²`,
+    subtitle: `d = 0 m • τ = ${formatNumber(cState.tau, 3)} N·m • α = ${formatNumber(cState.alpha, 3)} rad/s²`,
   });
   drawComparisonBody(el.steiner.displacedCanvas, geometry, dState.theta, {
-    force: visForce,
+    force: visForceDisplaced,
     direction,
     axisOffset: dVal,
     bCm: dState.bCm,
-    subtitle: `d = ${formatNumber(dVal, 2)} m • I = ${formatNumber(dState.I, 3)} kg·m² • α = ${formatNumber(dState.alpha, 3)} rad/s²`,
+    subtitle: `d = ${formatNumber(dVal, 2)} m • τ = ${formatNumber(dState.tau, 3)} N·m • α = ${formatNumber(dState.alpha, 3)} rad/s²`,
   });
 
   const status = steinerStatus();
@@ -1185,6 +1418,9 @@ function updateSteinerComparison() {
           ? 'Concluída'
           : 'Iniciar comparação de Steiner';
   el.steiner.run.disabled = status === 'finished';
+  const canExport = steiner.hasStarted && steiner.central.dynamics !== null;
+  if (el.steiner.exportBr) el.steiner.exportBr.disabled = !canExport;
+  if (el.steiner.exportStd) el.steiner.exportStd.disabled = !canExport;
 
   if (steiner.dirty) {
     steiner.dirty = false;
@@ -1210,6 +1446,7 @@ function resetSteinerComparison(message = '') {
     steiner.central = null;
     steiner.displaced = null;
     steiner.samples = [];
+    steiner.hasStarted = false;
     steiner.dirty = true;
     const errMsg =
       dValidation.errors.mass ||
@@ -1225,28 +1462,11 @@ function resetSteinerComparison(message = '') {
   steiner.central = new Experiment(centralParams);
   steiner.displaced = new Experiment(displacedParams);
   steiner.samples = [];
+  steiner.hasStarted = false;
   steiner.dirty = true;
   el.steiner.notice.textContent = message;
   updateSteinerComparison();
   return true;
-}
-
-function pushSteinerSample(force = false) {
-  const c = steiner.central?.state;
-  const d = steiner.displaced?.state;
-  if (!c || !d) return;
-  const last = steiner.samples.at(-1);
-  if (last && Math.abs(c.t - last.t) < 1e-9) return;
-  if (force || !last || c.t - last.t >= SAMPLE_INTERVAL) {
-    steiner.samples.push({
-      t: c.t,
-      centralOmega: c.omega,
-      displacedOmega: d.omega,
-      centralTheta: c.theta,
-      displacedTheta: d.theta,
-    });
-    steiner.dirty = true;
-  }
 }
 
 function toggleSteinerComparison() {
@@ -1256,14 +1476,46 @@ function toggleSteinerComparison() {
     steiner.displaced.pause();
     el.steiner.notice.textContent = 'Comparação de Steiner pausada.';
   } else if (steiner.central.start() && steiner.displaced.start()) {
-    if (!steiner.samples.length) pushSteinerSample(true);
-    el.steiner.notice.textContent = 'Relógio comum em execução: observe como o termo Md² reduz a aceleração angular.';
+    steiner.hasStarted = true;
+    syncSteinerSamples();
+    el.steiner.notice.textContent = 'Relógio comum em execução: observe como o termo Md² reduz a aceleração angular sob o mesmo torque.';
   }
   updateSteinerComparison();
 }
 
+function handleExportSteinerCsv(decimalSeparator = ',') {
+  if (!steiner.central?.dynamics || !steiner.displaced?.dynamics || !steiner.hasStarted) return;
+  const p = steiner.displaced.params;
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const csv = buildSteinerComparisonCsv({
+    geometry: p.geometry,
+    mass: p.mass,
+    size: p.size,
+    axisOffset: p.axisOffset,
+    direction: p.direction,
+    centralDynamics: steiner.central.dynamics,
+    displacedDynamics: steiner.displaced.dynamics,
+    upToTime: steiner.central.time,
+    sampleDt: ui.sampleDt,
+    decimalSeparator,
+    columnSeparator: ';',
+  });
+  const fmtSuffix = decimalSeparator === ',' ? '_excel_br' : '_padrao';
+  downloadCsv(`comparacao_steiner_${p.geometry}${fmtSuffix}_${stamp}.csv`, csv);
+  el.steiner.notice.textContent =
+    decimalSeparator === ','
+      ? 'CSV da comparação de Steiner exportado para Excel / Calc Brasil (; e vírgula decimal).'
+      : 'CSV da comparação de Steiner exportado em formato padrão (ponto decimal).';
+}
+
 el.steiner.run.addEventListener('click', toggleSteinerComparison);
 el.steiner.reset.addEventListener('click', () => resetSteinerComparison('Comparação de Steiner reiniciada em t = 0 s.'));
+if (el.steiner.exportBr) {
+  el.steiner.exportBr.addEventListener('click', () => handleExportSteinerCsv(','));
+}
+if (el.steiner.exportStd) {
+  el.steiner.exportStd.addEventListener('click', () => handleExportSteinerCsv('.'));
+}
 el.steiner.geometry.addEventListener('change', () => {
   refreshSteinerSizeLimits();
   const isBar = GEOMETRIES[el.steiner.geometry.value]?.dimensao === 'length';
@@ -1287,7 +1539,7 @@ function applyGuidedExperiment(kind) {
   if (kind === 'comparison') {
     el.comparison.mass.value = '2'; el.comparison.radius.value = '0.5'; el.comparison.force.value = '1';
     if (el.comparison.direction) el.comparison.direction.value = '1';
-    resetComparison('Roteiro carregado: M = 2 kg, R = 0,5 m e F = 1 N. Disco: α = 2; anel: α = 1 rad/s².');
+    resetComparison('Roteiro 01 carregado: M = 2 kg, R = 0,5 m e F = 1 N. Disco: α = 2 rad/s²; Anel: α = 1 rad/s².');
     $('#comparacao').scrollIntoView({ behavior: 'smooth', block: 'start' });
     return;
   }
@@ -1300,7 +1552,7 @@ function applyGuidedExperiment(kind) {
     el.steiner.torque.value = '0.5';
     el.steiner.direction.value = '1';
     resetSteinerComparison(
-      'Roteiro Steiner carregado: M = 2 kg, R = 0,5 m, d = 0,5 m e τ = 0,5 N·m. Icm = 0,25 → I = 0,75 kg·m²; α cai de 2 para ≈ 0,667 rad/s².'
+      'Roteiro 04 carregado: M = 2 kg, R = 0,5 m, d = 0,5 m e τ = 0,5 N·m. I sobe de 0,25 para 0,75 kg·m² e α cai de 2 para ≈ 0,67 rad/s².'
     );
     $('#comparacao-steiner').scrollIntoView({ behavior: 'smooth', block: 'start' });
     return;
@@ -1321,14 +1573,22 @@ function applyGuidedExperiment(kind) {
   applyParams();
   if (kind === 'steiner-main') {
     showNotice(
-      'Roteiro Steiner 3D carregado: d = 0,50 m. I = 0,25 + 0,50 = 0,75 kg·m², braço b = R + d = 1,0 m e τ = 1,0 N·m.',
+      'Roteiro 05 carregado: d = 0,50 m. Inércia I = 0,75 kg·m², braço b = 1,0 m, torque τ = 1,0 N·m e α ≈ 1,33 rad/s².',
+      'info'
+    );
+  } else if (kind === 'mass') {
+    showNotice(
+      'Roteiro 02 carregado: M = 4,0 kg (dobro da massa). O torque permanece 0,5 N·m, I dobra para 0,50 kg·m² e α cai pela metade (1,00 rad/s²).',
+      'info'
+    );
+  } else if (kind === 'force') {
+    showNotice(
+      'Roteiro 03 carregado: F = 2,00 N (dobro da força). A inércia permanece 0,25 kg·m², o torque dobra para 1,0 N·m e α dobra (4,00 rad/s²).',
       'info'
     );
   } else {
     showNotice(
-      kind === 'mass'
-        ? 'Roteiro carregado: M = 4 kg (d = 0 m). Compare com M = 2 kg; α cai pela metade.'
-        : 'Roteiro carregado: F = 2 N (d = 0 m). Compare com F = 1 N; α dobra.',
+      'Caso base carregado: Disco com M = 2,0 kg, R = 0,50 m, d = 0,00 m e F = 1,00 N (I = 0,25 kg·m², τ = 0,5 N·m, α = 2,00 rad/s²).',
       'info'
     );
   }
@@ -1344,6 +1604,21 @@ document.querySelectorAll('[data-guide]').forEach((button) =>
 let rafId = 0;
 let lastTime = null;
 
+function advanceWithStopTarget(exp, dt, rate, stopTarget) {
+  const before = exp.time;
+  const stepDt = Math.min(dt, MAX_FRAME_DT);
+  const target = stopTarget < MAX_SIM_TIME && before < stopTarget - 1e-6 ? stopTarget : MAX_SIM_TIME;
+  if (before + stepDt * rate >= target - 1e-9 && target < MAX_SIM_TIME) {
+    const exactRealDt = (target - before) / rate;
+    exp.advance(exactRealDt, rate);
+    exp.time = target;
+    exp.pause();
+    return true; // atingiu parada automática intermediária
+  }
+  exp.advance(stepDt, rate);
+  return false;
+}
+
 function frame(now) {
   rafId = requestAnimationFrame(frame);
   const dt = lastTime === null ? 0 : (now - lastTime) / 1000;
@@ -1351,27 +1626,41 @@ function frame(now) {
   if (dt > 0 && dt < 0.5) avgFrameDt = avgFrameDt * 0.9 + dt * 0.1;
 
   if (experiment.status === 'running') {
-    experiment.advance(dt, ui.rate);
-    pushSample(experiment.status === 'finished');
+    const hitStop = advanceWithStopTarget(experiment, dt, ui.rate, ui.stopTime);
+    syncSamplesToTime();
     updateDynamicEquationEnergy();
     updateControls();
-    if (experiment.status === 'finished') {
+    if (hitStop) {
+      showNotice(
+        `Pausado automaticamente em t = ${formatFixed(experiment.time, 2)} s. Confira os valores/planilha ou clique em Continuar.`,
+        'info',
+        true
+      );
+    } else if (experiment.status === 'finished') {
       showNotice(`Limite de ${MAX_SIM_TIME} s simulados atingido. Use Reiniciar para uma nova execução.`, 'info', true);
     }
   }
 
   if (comparisonStatus() === 'running') {
-    comparison.disk.advance(dt, ui.rate);
-    comparison.ring.advance(dt, ui.rate);
-    pushComparisonSample(comparisonStatus() === 'finished');
-    if (comparisonStatus() === 'finished') el.comparison.notice.textContent = `Comparação finalizada em ${MAX_SIM_TIME} s simulados.`;
+    const hitStopDisk = advanceWithStopTarget(comparison.disk, dt, ui.rate, ui.stopTime);
+    advanceWithStopTarget(comparison.ring, dt, ui.rate, ui.stopTime);
+    syncComparisonSamples();
+    if (hitStopDisk) {
+      el.comparison.notice.textContent = `Comparação pausada automaticamente em t = ${formatFixed(comparison.disk.time, 2)} s. Clique em Continuar se desejar prosseguir.`;
+    } else if (comparisonStatus() === 'finished') {
+      el.comparison.notice.textContent = `Comparação finalizada em ${MAX_SIM_TIME} s simulados.`;
+    }
   }
 
   if (steinerStatus() === 'running') {
-    steiner.central.advance(dt, ui.rate);
-    steiner.displaced.advance(dt, ui.rate);
-    pushSteinerSample(steinerStatus() === 'finished');
-    if (steinerStatus() === 'finished') el.steiner.notice.textContent = `Comparação de Steiner finalizada em ${MAX_SIM_TIME} s simulados.`;
+    const hitStopSteiner = advanceWithStopTarget(steiner.central, dt, ui.rate, ui.stopTime);
+    advanceWithStopTarget(steiner.displaced, dt, ui.rate, ui.stopTime);
+    syncSteinerSamples();
+    if (hitStopSteiner) {
+      el.steiner.notice.textContent = `Comparação de Steiner pausada automaticamente em t = ${formatFixed(steiner.central.time, 2)} s. Clique em Continuar se desejar prosseguir.`;
+    } else if (steinerStatus() === 'finished') {
+      el.steiner.notice.textContent = `Comparação de Steiner finalizada em ${MAX_SIM_TIME} s simulados.`;
+    }
   }
 
   updateReadouts();
@@ -1401,7 +1690,7 @@ document.addEventListener('visibilitychange', () => {
 
 initForm();
 refreshSteinerSizeLimits();
-resetComparison('Ajuste as condições e inicie a comparação.');
+resetComparison('Ajuste as condições e clique em Iniciar comparação.');
 resetSteinerComparison('Compare o eixo central (d = 0) com o eixo deslocado (d = 0,5 m) sob o mesmo torque.');
 renderEquations();
 updateControls();

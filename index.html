@@ -21,7 +21,7 @@
           <h1>Laboratório Virtual de Dinâmica de Rotação e Momento de Inércia</h1>
         </div>
       </div>
-      <p class="topbar-note">Corpos rígidos homogêneos · Teorema de Steiner (I = Icm + Md²) · força tangencial</p>
+      <p class="topbar-note">Giro de corpos rígidos · Momento de inércia · Teorema de Steiner (I = Icm + Md²)</p>
     </header>
 
     <main class="lab" id="conteudo">
@@ -38,7 +38,7 @@
               <span class="clock-label">t</span>
               <span class="clock-value" id="clock-value">0,00</span>
               <span class="clock-unit">s</span>
-              <span class="clock-max">/ 20 s</span>
+              <span class="clock-max" id="clock-max">/ 20 s</span>
             </div>
             <button type="button" class="btn btn-ghost btn-sm" id="btn-view">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5V2L7 6l5 4V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7z" fill="currentColor"/></svg>
@@ -47,14 +47,14 @@
           </div>
 
           <aside class="legend" aria-label="Legenda da visualização">
-            <h3 class="legend-title">Legenda</h3>
+            <h3 class="legend-title">Legenda da bancada</h3>
             <ul>
-              <li><span class="sw sw-axis" aria-hidden="true"></span>Eixo fixo de rotação</li>
-              <li><span class="sw sw-cm" aria-hidden="true"></span>Eixo no CM / distância d</li>
-              <li><span class="sw sw-point" aria-hidden="true"></span>Ponto de aplicação</li>
-              <li><span class="sw sw-force" aria-hidden="true"></span>Força tangencial F</li>
-              <li><span class="sw sw-torque" aria-hidden="true"></span>Sentido do torque τ</li>
-              <li><span class="sw sw-mark" aria-hidden="true"></span>Marca de referência</li>
+              <li><span class="sw sw-axis" aria-hidden="true"></span>Eixo fixo onde o corpo gira</li>
+              <li><span class="sw sw-cm" aria-hidden="true"></span>Centro de massa (CM) e distância <var>d</var></li>
+              <li><span class="sw sw-point" aria-hidden="true"></span>Ponto onde a força toca a borda</li>
+              <li><span class="sw sw-force" aria-hidden="true"></span>Força tangencial <var>F</var> (empurrão)</li>
+              <li><span class="sw sw-torque" aria-hidden="true"></span>Sentido do torque <var>τ</var> (giro)</li>
+              <li><span class="sw sw-mark" aria-hidden="true"></span>Faixa amarela para contar voltas</li>
             </ul>
             <p class="legend-geo" id="legend-axis"></p>
           </aside>
@@ -79,9 +79,9 @@
 
         <form id="params-form" novalidate autocomplete="off">
           <fieldset class="field-group">
-            <legend>Geometria do corpo</legend>
+            <legend>Formato do objeto (geometria)</legend>
             <div class="geo-grid">
-              <label class="geo-option"><input type="radio" name="geometry" value="disco" checked /><span><svg viewBox="0 0 32 32" aria-hidden="true"><ellipse cx="16" cy="16" rx="13" ry="13" /></svg>Disco / cilindro</span></label>
+              <label class="geo-option"><input type="radio" name="geometry" value="disco" checked /><span><svg viewBox="0 0 32 32" aria-hidden="true"><ellipse cx="16" cy="16" rx="13" ry="13" /></svg>Disco maciço</span></label>
               <label class="geo-option"><input type="radio" name="geometry" value="anel" /><span><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="12" class="ring" /></svg>Anel fino</span></label>
               <label class="geo-option"><input type="radio" name="geometry" value="esfera" /><span><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="13" /><ellipse cx="16" cy="16" rx="13" ry="4.5" class="line" /></svg>Esfera maciça</span></label>
               <label class="geo-option"><input type="radio" name="geometry" value="barra" /><span><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="3" y="13.5" width="26" height="5" rx="1.5" /></svg>Barra fina</span></label>
@@ -90,7 +90,7 @@
 
           <div class="field" data-field="mass">
             <div class="field-head">
-              <label for="mass-input">Massa <var>M</var></label>
+              <label for="mass-input">Massa do objeto <var>M</var></label>
               <span class="input-unit"><input id="mass-input" name="mass" type="text" inputmode="decimal" aria-describedby="mass-hint mass-error" /><span aria-hidden="true">kg</span></span>
             </div>
             <input id="mass-range" type="range" aria-label="Massa M em quilogramas (controle deslizante)" />
@@ -110,7 +110,7 @@
 
           <div class="field" data-field="axisOffset">
             <div class="field-head">
-              <label for="offset-input">Distância do eixo ao CM <var>d</var></label>
+              <label for="offset-input">Distância do eixo ao centro de massa <var>d</var></label>
               <span class="input-unit"><input id="offset-input" name="axisOffset" type="text" inputmode="decimal" aria-describedby="offset-hint offset-error" /><span aria-hidden="true">m</span></span>
             </div>
             <input id="offset-range" type="range" aria-label="Distância d entre o eixo de rotação e o centro de massa em metros (controle deslizante)" />
@@ -120,7 +120,7 @@
 
           <div class="field" data-field="force">
             <div class="field-head">
-              <label for="force-input">Força <var>F</var></label>
+              <label for="force-input">Força aplicada na borda <var>F</var></label>
               <span class="input-unit"><input id="force-input" name="force" type="text" inputmode="decimal" aria-describedby="force-hint force-error" /><span aria-hidden="true">N</span></span>
             </div>
             <input id="force-range" type="range" aria-label="Força F em newtons (controle deslizante)" />
@@ -129,15 +129,15 @@
           </div>
 
           <fieldset class="field-group">
-            <legend>Sentido da força (vista de cima)</legend>
+            <legend>Sentido do giro (visto de cima)</legend>
             <div class="segmented">
-              <label><input type="radio" name="direction" value="1" checked /><span>↺ Anti-horário</span></label>
-              <label><input type="radio" name="direction" value="-1" /><span>↻ Horário</span></label>
+              <label><input type="radio" name="direction" value="1" checked /><span>↺ Anti-horário (+)</span></label>
+              <label><input type="radio" name="direction" value="-1" /><span>↻ Horário (−)</span></label>
             </div>
           </fieldset>
 
           <fieldset class="field-group noise-group">
-            <legend>Aquisição experimental e incertezas</legend>
+            <legend>Coleta de dados e incertezas experimentais</legend>
             <label class="toggle-control" for="noise-toggle">
               <input type="checkbox" id="noise-toggle" name="noiseEnabled" />
               <span class="toggle-track" aria-hidden="true"></span>
@@ -145,17 +145,17 @@
             </label>
             <div class="noise-options" id="noise-options" hidden>
               <div class="noise-subrow">
-                <span class="noise-sublabel">Nível de ruído relativo (<var>σ</var><sub>rel</sub>)</span>
+                <span class="noise-sublabel">Oscilação média do sensor (<var>σ</var><sub>rel</sub>)</span>
                 <div class="segmented segmented--3" role="radiogroup" aria-label="Nível de ruído relativo do sensor">
                   <label><input type="radio" name="noiseLevel" value="0.01" /><span>1%</span></label>
                   <label><input type="radio" name="noiseLevel" value="0.02" checked /><span>2%</span></label>
                   <label><input type="radio" name="noiseLevel" value="0.05" /><span>5%</span></label>
                 </div>
               </div>
-              <p class="hint">Incerteza instrumental fixa da base de tempo: <strong>±0,01 s</strong> · Ruído gaussiano (Box-Muller) em <var>θ</var>, <var>ω</var> e <var>α</var>.</p>
+              <p class="hint">Simula pequenas variações de leitura de sensores reais (e ±0,01 s no cronômetro). As equações físicas e o movimento 3D não são alterados.</p>
             </div>
             <div class="noise-subrow sample-rate-row">
-              <span class="noise-sublabel">Intervalo de amostragem (<var>Δt</var>)</span>
+              <span class="noise-sublabel">Intervalo entre medidas na tabela (<var>Δt</var>)</span>
               <div class="segmented" role="radiogroup" aria-label="Intervalo de amostragem discreta da tabela e CSV">
                 <label><input type="radio" name="sampleDt" value="0.2" checked /><span>0,20 s</span></label>
                 <label><input type="radio" name="sampleDt" value="0.5" /><span>0,50 s</span></label>
@@ -178,24 +178,33 @@
         </div>
 
         <fieldset class="field-group">
-          <legend>Velocidade de reprodução</legend>
+          <legend>Pausar automaticamente em (<var>t</var><sub>alvo</sub>)</legend>
+          <div class="segmented segmented--4" role="radiogroup" aria-label="Tempo alvo para pausa automática">
+            <label><input type="radio" name="stopTime" value="2" /><span>2 s</span></label>
+            <label><input type="radio" name="stopTime" value="5" /><span>5 s</span></label>
+            <label><input type="radio" name="stopTime" value="10" /><span>10 s</span></label>
+            <label><input type="radio" name="stopTime" value="20" checked /><span>20 s</span></label>
+          </div>
+          <p class="hint">Dica: escolha <strong>2 s</strong> para pausar exatamente em <var>t</var> = 2,00 s e conferir os cálculos de aula sem erro de reflexo.</p>
+        </fieldset>
+
+        <fieldset class="field-group">
+          <legend>Velocidade da animação</legend>
           <div class="segmented segmented--3">
             <label><input type="radio" name="rate" value="0.25" /><span>0,25×</span></label>
             <label><input type="radio" name="rate" value="0.5" /><span>0,5×</span></label>
             <label><input type="radio" name="rate" value="1" checked /><span>1×</span></label>
           </div>
-          <p class="hint">Altera o avanço do tempo simulado (animação, valores e gráficos). Não reinicia o experimento. Cada execução dura até 20 s simulados.</p>
+          <p class="hint">Deixa apenas a visualização mais lenta (câmera lenta) para observar melhor o giro, sem alterar os resultados físicos.</p>
         </fieldset>
 
         <details class="model">
-          <summary>Hipóteses do modelo</summary>
+          <summary>Resumo das regras físicas deste simulador</summary>
           <ul>
-            <li>Corpo rígido e homogêneo; eixo fixo sem atrito, paralelo ao eixo central a uma distância <strong>d ≥ 0</strong> do centro de massa (CM).</li>
-            <li>Teorema de Steiner: <strong>I = Icm + Md²</strong>.</li>
-            <li>Ponto de aplicação na borda/extremidade oposta ao deslocamento do eixo, a <strong>b = b_cm + d</strong> do eixo de rotação; força <strong>F</strong> perpendicular a <strong>r</strong> (tangencial à trajetória do ponto), gerando torque <strong>τ = (r × F)_eixo = ±(b_cm + d)F</strong>.</li>
-            <li><strong>Vínculo mecânico (atuador tangencial / tambor concêntrico):</strong> A força tangencial contínua de módulo constante <strong>F ⊥ r</strong> (que mantém <strong>φ = 90°</strong> ao longo de múltiplas revoluções com braço efetivo <strong>b = b_cm + d</strong>) representa um <strong>atuador tangencial ideal solidário à borda</strong> ou o equivalente dinâmico de um sistema de fio inextensível tracionado em tambor cilíndrico concêntrico de raio efetivo <strong>b = b_cm + d</strong> acoplado rigidamente ao sistema sem massa adicional.</li>
-            <li>Partida do repouso: θ₀ = 0, ω₀ = 0. Sinal positivo: anti-horário visto de cima. Teorema do Trabalho-Energia: <strong>W = τ Δθ = ΔK_rot = ½ I ω²</strong>.</li>
-            <li>A haste rígida de acoplamento (que liga o eixo fixo ao CM e ao ponto de aplicação, inclusive quando <strong>d &gt; R</strong>) e os raios do anel têm massa desprezível.</li>
+            <li><strong>Sem atrito e partindo do repouso:</strong> o objeto começa parado (<var>θ</var>₀ = 0, <var>ω</var>₀ = 0) e gira sem perda de energia por atrito ou ar.</li>
+            <li><strong>Eixo de rotação e Steiner:</strong> o eixo pode passar pelo centro de massa (<var>d</var> = 0) ou ficar afastado por uma distância <var>d</var>, aumentando a inércia segundo <strong><var>I</var> = <var>I</var><sub>cm</sub> + <var>M</var>·<var>d</var>²</strong>.</li>
+            <li><strong>Como a força atua:</strong> a força <var>F</var> empurra a borda sempre na direção do giro (formando 90° com o braço <var>b</var> = <var>b</var><sub>cm</sub> + <var>d</var>), como uma corda puxando a borda de uma polia. O torque gerado é <strong><var>τ</var> = ±<var>b</var>·<var>F</var></strong>.</li>
+            <li><strong>Conservação de energia:</strong> todo o trabalho feito pelo torque vira energia cinética de rotação: <strong><var>W</var> = <var>τ</var>·<var>θ</var> = <var>K</var><sub>rot</sub> = ½·<var>I</var>·<var>ω</var>²</strong>.</li>
           </ul>
         </details>
       </aside>
@@ -205,23 +214,29 @@
         <h2 id="data-title" class="visually-hidden">Medidas e gráficos</h2>
 
         <dl class="readouts" id="readouts">
-          <div class="readout"><dt>Tempo <var>t</var></dt><dd><span data-out="t">0,00</span><span class="unit">s</span></dd><span class="readout-sub" data-out="t-sub">Δt_inst = ±0,01 s</span></div>
-          <div class="readout"><dt>Momento de inércia <var>I</var></dt><dd><span data-out="I">0,000</span><span class="unit">kg·m²</span></dd><span class="readout-sub" data-out="inertia-sub">Icm = 0,000 · Md² = 0,000</span></div>
-          <div class="readout"><dt>Torque <var>τ</var></dt><dd><span data-out="tau">0,000</span><span class="unit">N·m</span></dd><span class="readout-sub" data-out="torque-sub">b = 0,00 m</span></div>
-          <div class="readout"><dt>Aceleração angular <var>α</var></dt><dd><span data-out="alpha">0,00</span><span class="unit">rad/s²</span></dd><span class="readout-sub" data-out="alpha-sub">Determinístico</span></div>
-          <div class="readout readout--live"><dt>Velocidade angular <var>ω</var></dt><dd><span data-out="omega">0,00</span><span class="unit">rad/s</span></dd><span class="readout-sub" data-out="omega-sub">ω(t) = αt</span></div>
-          <div class="readout readout--live"><dt>Posição angular <var>θ</var></dt><dd><span data-out="theta">0,00</span><span class="unit">rad</span></dd><span class="readout-sub" data-out="turns">0,00 voltas</span></div>
-          <div class="readout readout--energy"><dt>Energia cinética <var>K</var><sub>rot</sub></dt><dd><span data-out="krot">0,00</span><span class="unit">J</span></dd><span class="readout-sub" data-out="krot-sub">K_rot = ½ I ω²</span></div>
-          <div class="readout readout--energy"><dt>Trabalho do torque <var>W</var></dt><dd><span data-out="work">0,00</span><span class="unit">J</span></dd><span class="readout-sub" data-out="power-sub">P = 0,00 W (τ·ω)</span></div>
+          <div class="readout" title="Tempo decorrido desde o início do movimento"><dt>Tempo <var>t</var></dt><dd><span data-out="t">0,00</span><span class="unit">s</span></dd><span class="readout-sub" data-out="t-sub">Relógio ideal</span></div>
+          <div class="readout" title="Resistência do objeto a mudar sua velocidade de rotação (I = Icm + Md²)"><dt>Momento de inércia <var>I</var></dt><dd><span data-out="I">0,250</span><span class="unit">kg·m²</span></dd><span class="readout-sub" data-out="inertia-sub">Icm = 0,250 · Md² = 0,000</span></div>
+          <div class="readout" title="Ação da força que provoca o giro (τ = b · F)"><dt>Torque <var>τ</var></dt><dd><span data-out="tau">0,500</span><span class="unit">N·m</span></dd><span class="readout-sub" data-out="torque-sub">Braço b = 0,50 m</span></div>
+          <div class="readout" title="Quanto a velocidade de rotação muda a cada segundo (α = τ / I)"><dt>Aceleração angular <var>α</var></dt><dd><span data-out="alpha">2,00</span><span class="unit">rad/s²</span></dd><span class="readout-sub" data-out="alpha-sub">α = τ / I (constante)</span></div>
+          <div class="readout readout--live" title="Rapidez e sentido da rotação neste instante (ω = α · t)"><dt>Velocidade angular <var>ω</var></dt><dd><span data-out="omega">0,00</span><span class="unit">rad/s</span></dd><span class="readout-sub" data-out="omega-sub">ω(t) = α·t</span></div>
+          <div class="readout readout--live" title="Ângulo total girado desde o início (θ = ½ · α · t²)"><dt>Posição angular <var>θ</var></dt><dd><span data-out="theta">0,00</span><span class="unit">rad</span></dd><span class="readout-sub" data-out="turns">≈ 0,00 voltas</span></div>
+          <div class="readout readout--energy" title="Energia acumulada no movimento de rotação (K_rot = ½ · I · ω²)"><dt>Energia cinética <var>K</var><sub>rot</sub></dt><dd><span data-out="krot">0,00</span><span class="unit">J</span></dd><span class="readout-sub" data-out="krot-sub">K_rot = ½ I ω²</span></div>
+          <div class="readout readout--energy" title="Energia transferida pelo torque durante o giro (W = τ · θ)"><dt>Trabalho do torque <var>W</var></dt><dd><span data-out="work">0,00</span><span class="unit">J</span></dd><span class="readout-sub" data-out="power-sub">Potência P = 0,00 W (τ·ω)</span></div>
         </dl>
 
         <div class="equations" id="equations" aria-label="Equações com os valores atuais"></div>
 
         <div class="data-export-bar">
-          <button type="button" class="btn btn-secondary export-btn" id="btn-export-csv" disabled>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20h14v-2H5v2zM12 3v10.17l3.59-3.58L17 11l-5 5-5-5 1.41-1.41L11 13.17V3h1z" fill="currentColor"/></svg>
-            Exportar CSV (Dados Experimentais)
-          </button>
+          <div class="export-buttons-group">
+            <button type="button" class="btn btn-secondary export-btn" id="btn-export-csv" disabled title="Usa ponto e vírgula (;) e vírgula decimal (,). Abre direto no Excel e LibreOffice Calc em português sem desconfigurar números.">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20h14v-2H5v2zM12 3v10.17l3.59-3.58L17 11l-5 5-5-5 1.41-1.41L11 13.17V3h1z" fill="currentColor"/></svg>
+              Exportar CSV (Excel / Calc BR)
+            </button>
+            <button type="button" class="btn btn-ghost export-btn" id="btn-export-csv-std" disabled title="Usa ponto decimal (.). Ideal para SciDAVis, Origin, Python/pandas e softwares em inglês.">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20h14v-2H5v2zM12 3v10.17l3.59-3.58L17 11l-5 5-5-5 1.41-1.41L11 13.17V3h1z" fill="currentColor"/></svg>
+              CSV Padrão Científico (ponto)
+            </button>
+          </div>
           <label class="blind-mode-check" for="blind-mode-toggle">
             <input type="checkbox" id="blind-mode-toggle" name="blindMode" />
             <span>Ocultar valores teóricos na tabela/CSV (Modo Cego para Relatório)</span>
@@ -230,7 +245,7 @@
         </div>
 
         <details class="sample-table-details" id="sample-table-details">
-          <summary>Ver tabela de dados amostrados (t, θ, ω, K)</summary>
+          <summary>Ver tabela de dados coletados passo a passo (<var>t</var>, <var>θ</var>, <var>ω</var>, <var>α</var>, <var>K</var><sub>rot</sub>, <var>W</var>)</summary>
           <div class="table-scroll">
             <table class="sample-table" id="sample-table" aria-label="Tabela de dados experimentais amostrados">
               <thead>
@@ -246,7 +261,7 @@
                 </tr>
               </thead>
               <tbody id="sample-table-body">
-                <tr class="table-empty-row"><td colspan="8">Nenhuma amostra registrada. Pressione <em>Iniciar</em> para coletar pares ordenados.</td></tr>
+                <tr class="table-empty-row"><td colspan="8">Nenhuma amostra registrada. Pressione <em>Iniciar</em> para coletar os dados em função do tempo.</td></tr>
               </tbody>
             </table>
           </div>
@@ -257,32 +272,35 @@
       <section class="data-charts" aria-labelledby="data-title">
         <div class="charts">
           <figure class="chart">
-            <figcaption><span class="chart-swatch chart-swatch--omega" aria-hidden="true"></span>Velocidade angular <var>ω</var>(<var>t</var>)</figcaption>
+            <figcaption><span class="chart-swatch chart-swatch--omega" aria-hidden="true"></span>Velocidade angular <var>ω</var>(<var>t</var>) · rapidez do giro</figcaption>
+            <p class="chart-desc">Mostra como a rapidez de rotação muda com o tempo (<strong><var>ω</var> = <var>α</var>·<var>t</var></strong>). Com torque constante, forma uma <strong>reta inclinada</strong>: sobe no sentido anti-horário (+) e desce no sentido horário (−). Quanto mais inclinada a reta, maior a aceleração.</p>
             <div class="chart-body">
               <canvas id="chart-omega" role="img" aria-label="Gráfico da velocidade angular em função do tempo"></canvas>
               <div class="empty-state" data-empty>
                 <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M6 40h36M8 40V8" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"/><path d="M10 36 40 12" stroke="currentColor" stroke-width="2.5" stroke-dasharray="3 4" fill="none" stroke-linecap="round"/></svg>
-                <p><strong>Sem dados ainda</strong>Pressione <em>Iniciar</em> para registrar ω em função do tempo.</p>
+                <p><strong>Sem dados ainda</strong>Pressione <em>Iniciar</em> para ver a reta da velocidade angular ω(t).</p>
               </div>
             </div>
           </figure>
           <figure class="chart">
-            <figcaption><span class="chart-swatch chart-swatch--theta" aria-hidden="true"></span>Posição angular <var>θ</var>(<var>t</var>)</figcaption>
+            <figcaption><span class="chart-swatch chart-swatch--theta" aria-hidden="true"></span>Posição angular <var>θ</var>(<var>t</var>) · ângulo total girado</figcaption>
+            <p class="chart-desc">Mostra o ângulo acumulado desde o início (<strong><var>θ</var> = ½·<var>α</var>·<var>t</var>²</strong>). Como o objeto gira cada vez mais rápido, o gráfico forma uma <strong>curva (parábola)</strong>: positiva no sentido anti-horário (+) e negativa no sentido horário (−).</p>
             <div class="chart-body">
               <canvas id="chart-theta" role="img" aria-label="Gráfico da posição angular acumulada em função do tempo"></canvas>
               <div class="empty-state" data-empty>
                 <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M6 40h36M8 40V8" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"/><path d="M10 38C24 37 32 28 40 10" stroke="currentColor" stroke-width="2.5" stroke-dasharray="3 4" fill="none" stroke-linecap="round"/></svg>
-                <p><strong>Sem dados ainda</strong>A posição angular acumulada aparecerá aqui durante a execução.</p>
+                <p><strong>Sem dados ainda</strong>Pressione <em>Iniciar</em> para ver a parábola da posição angular θ(t).</p>
               </div>
             </div>
           </figure>
           <figure class="chart">
-            <figcaption><span class="chart-swatch chart-swatch--alpha" aria-hidden="true"></span>Aceleração angular <var>α</var>(<var>t</var>)</figcaption>
+            <figcaption><span class="chart-swatch chart-swatch--alpha" aria-hidden="true"></span>Aceleração angular <var>α</var>(<var>t</var>) · ganho de velocidade por segundo</figcaption>
+            <p class="chart-desc">Indica quanto a velocidade de rotação muda a cada segundo (<strong><var>α</var> = <var>τ</var> / <var>I</var></strong>). Como o torque e o momento de inércia permanecem constantes durante o experimento, o gráfico teórico é uma <strong>linha horizontal reta</strong> (positiva em ↺ e negativa em ↻).</p>
             <div class="chart-body">
               <canvas id="chart-alpha" role="img" aria-label="Gráfico da aceleração angular em função do tempo"></canvas>
               <div class="empty-state" data-empty>
                 <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M6 40h36M8 40V8M10 24h30" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"/></svg>
-                <p><strong>Sem dados ainda</strong>A aceleração angular constante aparecerá aqui durante a execução.</p>
+                <p><strong>Sem dados ainda</strong>Pressione <em>Iniciar</em> para ver o patamar constante da aceleração α(t).</p>
               </div>
             </div>
           </figure>
@@ -293,12 +311,17 @@
       <section class="comparison panel-section" id="comparacao" aria-labelledby="comparison-title">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">Experimento comparativo 1 · Distribuição de massa</p>
-            <h2 id="comparison-title">Disco × anel sob as mesmas condições</h2>
+            <p class="eyebrow">Experimento comparativo 1 · Como a distribuição da massa afeta o giro</p>
+            <h2 id="comparison-title">Disco maciço × Anel fino sob as mesmas condições</h2>
           </div>
-          <div class="comparison-actions"><div class="clock" aria-label="Tempo simulado da comparação"><span class="clock-label">t</span><span class="clock-value" id="comparison-clock">0,00</span><span class="clock-unit">s</span><span class="clock-max">/ 20 s</span></div><button type="button" class="btn btn-secondary btn-sm" id="btn-comparison-run">Iniciar comparação</button></div>
+          <div class="comparison-actions">
+            <div class="clock" aria-label="Tempo simulado da comparação"><span class="clock-label">t</span><span class="clock-value" id="comparison-clock">0,00</span><span class="clock-unit">s</span><span class="clock-max">/ 20 s</span></div>
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-comparison-run">Iniciar comparação</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="btn-comparison-export" disabled title="Exportar dados da comparação Disco x Anel para Excel/Calc Brasil (; e vírgula)">Exportar CSV (Excel BR)</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="btn-comparison-export-std" disabled title="Exportar dados da comparação Disco x Anel com ponto decimal">CSV Padrão (.)</button>
+          </div>
         </div>
-        <p class="section-lead">Massa, raio, força, sentido e relógio são idênticos (eixo central, d = 0). A única variável alterada é a distribuição da massa.</p>
+        <p class="section-lead">Os dois objetos têm a <strong>mesma massa</strong>, o <strong>mesmo raio</strong> e recebem a <strong>mesma força</strong> na borda (portanto, o <strong>mesmo torque <var>τ</var></strong>). Como no anel toda a massa fica longe do centro, o momento de inércia do anel (<var>I</var> = <var>MR</var>²) é o dobro do disco (<var>I</var> = ½<var>MR</var>²), fazendo o anel acelerar pela metade.</p>
         <div class="comparison-controls">
           <label>Massa <input id="comparison-mass" type="number" min="0.1" max="10" step="0.1" value="2" inputmode="decimal" /> <span>kg</span></label>
           <label>Raio <input id="comparison-radius" type="number" min="0.05" max="0.5" step="0.01" value="0.5" inputmode="decimal" /> <span>m</span></label>
@@ -309,27 +332,30 @@
         <p class="comparison-notice" id="comparison-notice" role="status"></p>
         <div class="comparison-bodies">
           <article class="comparison-body comparison-body--disk">
-            <header><span class="comparison-dot" aria-hidden="true"></span><h3>Disco maciço</h3></header>
+            <header><span class="comparison-dot" aria-hidden="true"></span><h3>Disco maciço (massa distribuída até o centro · <var>I</var> = ½<var>MR</var>²)</h3></header>
             <canvas id="comparison-disk" width="240" height="180" role="img" aria-label="Visualização do disco em rotação"></canvas>
-            <dl><div><dt>I</dt><dd data-compare="disk-I">—</dd></div><div><dt>τ</dt><dd data-compare="disk-tau">—</dd></div><div><dt>α</dt><dd data-compare="disk-alpha">—</dd></div><div><dt>ω</dt><dd data-compare="disk-omega">0,00 rad/s</dd></div><div><dt>θ</dt><dd data-compare="disk-theta">0,00 rad</dd></div><div><dt>K<sub>rot</sub> / W</dt><dd data-compare="disk-energy">0,00 J</dd></div></dl>
+            <dl><div><dt>Inércia I</dt><dd data-compare="disk-I">—</dd></div><div><dt>Torque τ</dt><dd data-compare="disk-tau">—</dd></div><div><dt>Aceleração α</dt><dd data-compare="disk-alpha">—</dd></div><div><dt>Velocidade ω</dt><dd data-compare="disk-omega">0,00 rad/s</dd></div><div><dt>Posição θ</dt><dd data-compare="disk-theta">0,00 rad</dd></div><div><dt>Energia K<sub>rot</sub> = W</dt><dd data-compare="disk-energy">0,00 J</dd></div></dl>
           </article>
           <article class="comparison-body comparison-body--ring">
-            <header><span class="comparison-dot" aria-hidden="true"></span><h3>Anel fino</h3></header>
+            <header><span class="comparison-dot" aria-hidden="true"></span><h3>Anel fino (toda a massa na borda · <var>I</var> = <var>MR</var>²)</h3></header>
             <canvas id="comparison-ring" width="240" height="180" role="img" aria-label="Visualização do anel em rotação"></canvas>
-            <dl><div><dt>I</dt><dd data-compare="ring-I">—</dd></div><div><dt>τ</dt><dd data-compare="ring-tau">—</dd></div><div><dt>α</dt><dd data-compare="ring-alpha">—</dd></div><div><dt>ω</dt><dd data-compare="ring-omega">0,00 rad/s</dd></div><div><dt>θ</dt><dd data-compare="ring-theta">0,00 rad</dd></div><div><dt>K<sub>rot</sub> / W</dt><dd data-compare="ring-energy">0,00 J</dd></div></dl>
+            <dl><div><dt>Inércia I</dt><dd data-compare="ring-I">—</dd></div><div><dt>Torque τ</dt><dd data-compare="ring-tau">—</dd></div><div><dt>Aceleração α</dt><dd data-compare="ring-alpha">—</dd></div><div><dt>Velocidade ω</dt><dd data-compare="ring-omega">0,00 rad/s</dd></div><div><dt>Posição θ</dt><dd data-compare="ring-theta">0,00 rad</dd></div><div><dt>Energia K<sub>rot</sub> = W</dt><dd data-compare="ring-energy">0,00 J</dd></div></dl>
           </article>
         </div>
         <div class="comparison-charts">
           <figure class="chart comparison-chart">
-            <figcaption><span class="chart-swatch chart-swatch--disk" aria-hidden="true"></span>Disco <span class="chart-swatch chart-swatch--ring" aria-hidden="true"></span>Anel — aceleração angular <var>α</var>(<var>t</var>) · rad/s²</figcaption>
+            <figcaption><span class="chart-swatch chart-swatch--disk" aria-hidden="true"></span>Disco <span class="chart-swatch chart-swatch--ring" aria-hidden="true"></span>Anel — aceleração <var>α</var>(<var>t</var>) · rad/s²</figcaption>
+            <p class="chart-desc">Duas linhas horizontais constantes: a aceleração do disco é sempre o dobro da do anel.</p>
             <div class="chart-body"><canvas id="comparison-chart-alpha" role="img" aria-label="Comparação da aceleração angular, em radianos por segundo ao quadrado, entre disco e anel"></canvas></div>
           </figure>
           <figure class="chart comparison-chart">
-            <figcaption><span class="chart-swatch chart-swatch--disk" aria-hidden="true"></span>Disco <span class="chart-swatch chart-swatch--ring" aria-hidden="true"></span>Anel — velocidade angular <var>ω</var>(<var>t</var>) · rad/s</figcaption>
+            <figcaption><span class="chart-swatch chart-swatch--disk" aria-hidden="true"></span>Disco <span class="chart-swatch chart-swatch--ring" aria-hidden="true"></span>Anel — velocidade <var>ω</var>(<var>t</var>) · rad/s</figcaption>
+            <p class="chart-desc">Duas retas partindo do zero: a reta do disco tem o dobro da inclinação da reta do anel.</p>
             <div class="chart-body"><canvas id="comparison-chart-omega" role="img" aria-label="Comparação da velocidade angular, em radianos por segundo, entre disco e anel"></canvas></div>
           </figure>
           <figure class="chart comparison-chart">
-            <figcaption><span class="chart-swatch chart-swatch--disk" aria-hidden="true"></span>Disco <span class="chart-swatch chart-swatch--ring" aria-hidden="true"></span>Anel — posição angular <var>θ</var>(<var>t</var>) · rad</figcaption>
+            <figcaption><span class="chart-swatch chart-swatch--disk" aria-hidden="true"></span>Disco <span class="chart-swatch chart-swatch--ring" aria-hidden="true"></span>Anel — posição <var>θ</var>(<var>t</var>) · rad</figcaption>
+            <p class="chart-desc">Duas parábolas: no mesmo intervalo de tempo, o disco completa o dobro do ângulo do anel.</p>
             <div class="chart-body"><canvas id="comparison-chart-theta" role="img" aria-label="Comparação da posição angular acumulada, em radianos, entre disco e anel"></canvas></div>
           </figure>
         </div>
@@ -340,11 +366,16 @@
         <div class="section-heading">
           <div>
             <p class="eyebrow">Experimento comparativo 2 · Teorema dos Eixos Paralelos (Steiner)</p>
-            <h2 id="steiner-title">Eixo central (<var>d</var> = 0) × eixo deslocado (<var>d</var> &gt; 0) sob o mesmo torque</h2>
+            <h2 id="steiner-title">Eixo no centro (<var>d</var> = 0) × Eixo deslocado (<var>d</var> &gt; 0) sob o mesmo torque</h2>
           </div>
-          <div class="comparison-actions"><div class="clock" aria-label="Tempo simulado da comparação de Steiner"><span class="clock-label">t</span><span class="clock-value" id="steiner-clock">0,00</span><span class="clock-unit">s</span><span class="clock-max">/ 20 s</span></div><button type="button" class="btn btn-secondary btn-sm" id="btn-steiner-run">Iniciar comparação de Steiner</button></div>
+          <div class="comparison-actions">
+            <div class="clock" aria-label="Tempo simulado da comparação de Steiner"><span class="clock-label">t</span><span class="clock-value" id="steiner-clock">0,00</span><span class="clock-unit">s</span><span class="clock-max">/ 20 s</span></div>
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-steiner-run">Iniciar comparação de Steiner</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="btn-steiner-export" disabled title="Exportar dados da comparação de Steiner para Excel/Calc Brasil (; e vírgula)">Exportar CSV (Excel BR)</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="btn-steiner-export-std" disabled title="Exportar dados da comparação de Steiner com ponto decimal">CSV Padrão (.)</button>
+          </div>
         </div>
-        <p class="section-lead">Mesmo corpo e mesmo torque líquido <strong>τ</strong> aplicado aos dois sistemas: o eixo deslocado acrescenta o termo quadrático <strong>Md²</strong> ao momento de inércia (<strong>I = Icm + Md²</strong>), reduzindo a aceleração angular <strong>α = τ/I</strong>.</p>
+        <p class="section-lead">Aqui aplicamos exatamente o <strong>mesmo torque <var>τ</var></strong> aos dois objetos para isolar o efeito da posição do eixo. Quando afastamos o eixo do centro de massa por uma distância <strong><var>d</var></strong>, o momento de inércia cresce somando <strong><var>M</var>·<var>d</var>²</strong> (<strong><var>I</var> = <var>I</var><sub>cm</sub> + <var>Md</var>²</strong>), deixando o giro mais pesado e reduzindo a aceleração (<strong><var>α</var> = <var>τ</var> / <var>I</var></strong>).</p>
         <div class="comparison-controls">
           <label>Corpo
             <select id="steiner-geometry" aria-label="Geometria do corpo na comparação de Steiner">
@@ -367,76 +398,197 @@
             <header><span class="comparison-dot" aria-hidden="true"></span><h3>Eixo central (<var>d</var> = 0 m · <var>I</var> = <var>I</var><sub>cm</sub>)</h3></header>
             <canvas id="steiner-central-canvas" width="240" height="190" role="img" aria-label="Visualização do corpo girando em torno do eixo central"></canvas>
             <dl class="steiner-dl">
-              <div><dt>I<sub>cm</sub></dt><dd data-steiner="central-Icm">—</dd></div>
-              <div><dt>Md²</dt><dd data-steiner="central-Id">0,000 kg·m²</dd></div>
-              <div><dt>I total</dt><dd data-steiner="central-I">—</dd></div>
-              <div><dt>τ</dt><dd data-steiner="central-tau">—</dd></div>
-              <div><dt>α</dt><dd data-steiner="central-alpha">—</dd></div>
+              <div><dt>Inércia no CM (I<sub>cm</sub>)</dt><dd data-steiner="central-Icm">—</dd></div>
+              <div><dt>Termo Md²</dt><dd data-steiner="central-Id">0,000 kg·m²</dd></div>
+              <div><dt>Inércia total (I)</dt><dd data-steiner="central-I">—</dd></div>
+              <div><dt>Torque τ</dt><dd data-steiner="central-tau">—</dd></div>
+              <div><dt>Aceleração α</dt><dd data-steiner="central-alpha">—</dd></div>
               <div><dt>ω / θ</dt><dd data-steiner="central-kin">0,00 rad/s · 0,00 rad</dd></div>
-              <div class="dl-span-full"><dt>K<sub>rot</sub> / W</dt><dd data-steiner="central-energy">0,00 J</dd></div>
+              <div class="dl-span-full"><dt>Energia cinética = Trabalho (K<sub>rot</sub> = W)</dt><dd data-steiner="central-energy">0,00 J</dd></div>
             </dl>
           </article>
           <article class="comparison-body comparison-body--ring">
             <header><span class="comparison-dot" aria-hidden="true"></span><h3>Eixo deslocado (<var>I</var> = <var>I</var><sub>cm</sub> + <var>Md</var>²)</h3></header>
             <canvas id="steiner-displaced-canvas" width="240" height="190" role="img" aria-label="Visualização do corpo girando em torno do eixo deslocado"></canvas>
             <dl class="steiner-dl">
-              <div><dt>I<sub>cm</sub></dt><dd data-steiner="displaced-Icm">—</dd></div>
-              <div><dt>Md²</dt><dd data-steiner="displaced-Id">—</dd></div>
-              <div><dt>I total</dt><dd data-steiner="displaced-I">—</dd></div>
-              <div><dt>τ</dt><dd data-steiner="displaced-tau">—</dd></div>
-              <div><dt>α</dt><dd data-steiner="displaced-alpha">—</dd></div>
+              <div><dt>Inércia no CM (I<sub>cm</sub>)</dt><dd data-steiner="displaced-Icm">—</dd></div>
+              <div><dt>Termo Md²</dt><dd data-steiner="displaced-Id">—</dd></div>
+              <div><dt>Inércia total (I)</dt><dd data-steiner="displaced-I">—</dd></div>
+              <div><dt>Torque τ</dt><dd data-steiner="displaced-tau">—</dd></div>
+              <div><dt>Aceleração α</dt><dd data-steiner="displaced-alpha">—</dd></div>
               <div><dt>ω / θ</dt><dd data-steiner="displaced-kin">0,00 rad/s · 0,00 rad</dd></div>
-              <div class="dl-span-full"><dt>K<sub>rot</sub> / W</dt><dd data-steiner="displaced-energy">0,00 J</dd></div>
+              <div class="dl-span-full"><dt>Energia cinética = Trabalho (K<sub>rot</sub> = W)</dt><dd data-steiner="displaced-energy">0,00 J</dd></div>
             </dl>
           </article>
         </div>
         <div class="comparison-charts">
           <figure class="chart comparison-chart">
-            <figcaption><span class="chart-swatch chart-swatch--disk" aria-hidden="true"></span>I<sub>cm</sub> <span class="chart-swatch chart-swatch--ring" aria-hidden="true"></span>Curva quadrática <var>I</var>(<var>d</var>) = <var>I</var><sub>cm</sub> + <var>Md</var>²</figcaption>
+            <figcaption><span class="chart-swatch chart-swatch--disk" aria-hidden="true"></span>I<sub>cm</sub> <span class="chart-swatch chart-swatch--ring" aria-hidden="true"></span>Curva <var>I</var>(<var>d</var>) = <var>I</var><sub>cm</sub> + <var>Md</var>²</figcaption>
+            <p class="chart-desc">Mostra como o momento de inércia cresce em parábola à medida que afastamos o eixo (<var>d</var>).</p>
             <div class="chart-body"><canvas id="steiner-chart-id" role="img" aria-label="Gráfico do momento de inércia em função da distância d pelo Teorema de Steiner"></canvas></div>
           </figure>
           <figure class="chart comparison-chart">
             <figcaption><span class="chart-swatch chart-swatch--disk" aria-hidden="true"></span>Central <span class="chart-swatch chart-swatch--ring" aria-hidden="true"></span>Deslocado — velocidade <var>ω</var>(<var>t</var>) · rad/s</figcaption>
+            <p class="chart-desc">Sob o mesmo torque, o eixo central ganha velocidade mais rápido que o eixo deslocado.</p>
             <div class="chart-body"><canvas id="steiner-chart-omega" role="img" aria-label="Comparação da velocidade angular entre eixo central e eixo deslocado"></canvas></div>
           </figure>
           <figure class="chart comparison-chart">
             <figcaption><span class="chart-swatch chart-swatch--disk" aria-hidden="true"></span>Central <span class="chart-swatch chart-swatch--ring" aria-hidden="true"></span>Deslocado — posição <var>θ</var>(<var>t</var>) · rad</figcaption>
+            <p class="chart-desc">Com menor inércia, o corpo no eixo central percorre um ângulo maior no mesmo tempo.</p>
             <div class="chart-body"><canvas id="steiner-chart-theta" role="img" aria-label="Comparação da posição angular entre eixo central e eixo deslocado"></canvas></div>
           </figure>
         </div>
       </section>
 
+      <!-- ROTEIROS GUIADOS -->
       <section class="guided panel-section" aria-labelledby="guided-title">
-        <div class="section-heading"><div><p class="eyebrow">Roteiros práticos</p><h2 id="guided-title">Experimentos guiados</h2></div></div>
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Roteiros práticos passo a passo</p>
+            <h2 id="guided-title">Experimentos guiados para aula e apresentação</h2>
+          </div>
+          <button type="button" class="btn btn-secondary btn-sm" data-guide="base">Restaurar caso base (Disco · M = 2 kg · R = 0,5 m · F = 1 N · d = 0)</button>
+        </div>
+        <p class="section-lead">Use estes 5 roteiros para testar hipóteses, coletar dados em <var>t</var> = 2 s e explicar os resultados com segurança em relatórios e seminários.</p>
         <div class="guide-grid">
-          <article><span class="guide-number">01</span><h3>Disco versus anel</h3><p>Mantenha M = 2 kg, R = 0,5 m, d = 0 e F = 1 N. O disco tem menor I (0,25 vs 0,50 kg·m²) e maior α (2 vs 1 rad/s²).</p><button type="button" class="btn btn-ghost btn-sm" data-guide="comparison">Carregar comparação</button></article>
-          <article><span class="guide-number">02</span><h3>Dobrar a massa</h3><p>Com disco, R = 0,5 m, d = 0 e F = 1 N, compare M = 2 kg com M = 4 kg. A aceleração cai pela metade (de 2 para 1 rad/s²).</p><button type="button" class="btn btn-ghost btn-sm" data-guide="mass">Aplicar M = 4 kg</button></article>
-          <article><span class="guide-number">03</span><h3>Dobrar a força</h3><p>Com disco, M = 2 kg, R = 0,5 m e d = 0, compare F = 1 N com F = 2 N. A aceleração dobra (de 2 para 4 rad/s²).</p><button type="button" class="btn btn-ghost btn-sm" data-guide="force">Aplicar F = 2 N</button></article>
-          <article><span class="guide-number">04</span><h3>Steiner sob mesmo torque</h3><p>Disco com M = 2 kg, R = 0,5 m e d = 0,5 m sob τ = 0,5 N·m: I sobe de 0,25 para 0,75 kg·m² e α cai de 2 para ≈ 0,667 rad/s².</p><button type="button" class="btn btn-ghost btn-sm" data-guide="steiner-compare">Comparar Steiner</button></article>
-          <article><span class="guide-number">05</span><h3>Steiner na bancada 3D</h3><p>Aplique d = 0,5 m no disco (M = 2 kg, R = 0,5 m, F = 1 N): veja o eixo deslocado, I = 0,75 kg·m² e o novo braço b = R + d = 1,0 m.</p><button type="button" class="btn btn-ghost btn-sm" data-guide="steiner-main">Aplicar d = 0,5 m em 3D</button></article>
+          <article class="guide-card">
+            <div class="guide-card-head"><span class="guide-number">01</span><h3>Disco maciço versus anel fino</h3></div>
+            <ul class="guide-steps">
+              <li><strong>Objetivo:</strong> Descobrir como a distribuição da massa altera a resistência ao giro.</li>
+              <li><strong>O que fazer:</strong> Clique em <em>Carregar comparação</em> (<var>M</var> = 2 kg, <var>R</var> = 0,5 m, <var>d</var> = 0 m e <var>F</var> = 1 N) e inicie a comparação.</li>
+              <li><strong>O que observar:</strong> O torque é igual nos dois (<var>τ</var> = 0,5 N·m), mas o disco tem <var>I</var> = 0,25 kg·m² e <var>α</var> = 2 rad/s², enquanto o anel tem <var>I</var> = 0,50 kg·m² e <var>α</var> = 1 rad/s². Em <var>t</var> = 2 s, o disco atinge <var>ω</var> = 4 rad/s e <var>K</var><sub>rot</sub> = 2 J; o anel atinge 2 rad/s e 1 J.</li>
+              <li><strong>Por que acontece:</strong> No anel toda a massa está concentrada na borda (longe do eixo), dificultando duas vezes mais o giro do que no disco maciço.</li>
+            </ul>
+            <p class="guide-conclusion"><strong>Conclusão para apresentação:</strong> “Para a mesma massa, raio e torque, o anel tem o dobro do momento de inércia do disco e, por isso, gira com metade da aceleração angular.”</p>
+            <div class="guide-actions">
+              <button type="button" class="btn btn-secondary btn-sm" data-guide="comparison">Carregar comparação</button>
+            </div>
+          </article>
+
+          <article class="guide-card">
+            <div class="guide-card-head"><span class="guide-number">02</span><h3>Dobrar a massa</h3></div>
+            <ul class="guide-steps">
+              <li><strong>Objetivo:</strong> Ver o que acontece com o torque, a aceleração e a energia ao dobrar a massa.</li>
+              <li><strong>O que fazer:</strong> No disco com <var>R</var> = 0,5 m, <var>d</var> = 0 m e <var>F</var> = 1 N, compare o caso base (<var>M</var> = 2 kg) com <var>M</var> = 4 kg.</li>
+              <li><strong>O que observar:</strong> O torque permanece 0,5 N·m, a inércia dobra (de 0,25 para 0,50 kg·m²) e a aceleração cai pela metade (de 2 para 1 rad/s²). Em <var>t</var> = 2 s, <var>ω</var> e <var>θ</var> caem de 4 para 2, e a energia (<var>K</var><sub>rot</sub> = <var>W</var>) cai de 2 J para 1 J.</li>
+              <li><strong>Por que acontece:</strong> O torque só depende da força e do braço (<var>τ</var> = <var>R</var>·<var>F</var>), não da massa. Com o dobro de massa, a inércia dobra e o disco gira metade do ângulo em 2 s, recebendo metade do trabalho.</li>
+            </ul>
+            <p class="guide-conclusion"><strong>Conclusão para apresentação:</strong> “Quando dobramos a massa, mantendo o raio e o torque constantes, o momento de inércia dobra e a aceleração angular cai pela metade.”</p>
+            <div class="guide-actions">
+              <button type="button" class="btn btn-secondary btn-sm" data-guide="mass">Aplicar M = 4 kg</button>
+              <button type="button" class="btn btn-ghost btn-sm" data-guide="base">Comparar c/ M = 2 kg</button>
+            </div>
+          </article>
+
+          <article class="guide-card">
+            <div class="guide-card-head"><span class="guide-number">03</span><h3>Dobrar a força</h3></div>
+            <ul class="guide-steps">
+              <li><strong>Objetivo:</strong> Verificar como o aumento da força altera o torque, a aceleração e o trabalho.</li>
+              <li><strong>O que fazer:</strong> No disco com <var>M</var> = 2 kg, <var>R</var> = 0,5 m e <var>d</var> = 0 m, compare <var>F</var> = 1 N com <var>F</var> = 2 N.</li>
+              <li><strong>O que observar:</strong> O momento de inércia não muda (0,25 kg·m²), o torque dobra (de 0,5 para 1,0 N·m) e a aceleração dobra (de 2 para 4 rad/s²). Em <var>t</var> = 2 s, <var>ω</var> = 8 rad/s, <var>θ</var> = 8 rad e <var>K</var><sub>rot</sub> = <var>W</var> = 8 J.</li>
+              <li><strong>Por que acontece:</strong> A inércia depende apenas da massa e do formato do corpo. Dobrar a força dobra o torque (<var>τ</var> = <var>R</var>·<var>F</var>); como o corpo também gira o dobro do ângulo, o trabalho (<var>W</var> = <var>τ</var>·<var>θ</var>) quadruplica.</li>
+            </ul>
+            <p class="guide-conclusion"><strong>Conclusão para apresentação:</strong> “Quando dobramos a força aplicada, mantendo a massa e o raio constantes, o momento de inércia não muda, mas o torque e a aceleração angular dobram.”</p>
+            <div class="guide-actions">
+              <button type="button" class="btn btn-secondary btn-sm" data-guide="force">Aplicar F = 2 N</button>
+              <button type="button" class="btn btn-ghost btn-sm" data-guide="base">Comparar c/ F = 1 N</button>
+            </div>
+          </article>
+
+          <article class="guide-card">
+            <div class="guide-card-head"><span class="guide-number">04</span><h3>Steiner sob o mesmo torque</h3></div>
+            <ul class="guide-steps">
+              <li><strong>Objetivo:</strong> Isolar o efeito do deslocamento do eixo (<var>d</var>) mantendo o mesmo torque nos dois casos.</li>
+              <li><strong>O que fazer:</strong> Clique em <em>Comparar Steiner</em> (<var>M</var> = 2 kg, <var>R</var> = 0,5 m, <var>d</var> = 0,5 m sob torque fixo <var>τ</var> = 0,5 N·m).</li>
+              <li><strong>O que observar:</strong> O termo <var>Md</var>² soma 0,50 kg·m² à inércia central (0,25 kg·m²), triplicando a inércia total para 0,75 kg·m². A aceleração cai para um terço (de 2 para ≈ 0,67 rad/s²).</li>
+              <li><strong>Por que acontece:</strong> Girar um objeto fora do seu centro de massa exige fazer o próprio centro de massa orbitar ao redor do eixo, somando <var>Md</var>² à resistência ao giro.</li>
+            </ul>
+            <p class="guide-conclusion"><strong>Conclusão para apresentação:</strong> “Sob o mesmo torque, deslocar o eixo de rotação aumenta o momento de inércia em Md² pelo Teorema de Steiner e reduz a aceleração angular.”</p>
+            <div class="guide-actions">
+              <button type="button" class="btn btn-secondary btn-sm" data-guide="steiner-compare">Comparar Steiner</button>
+            </div>
+          </article>
+
+          <article class="guide-card">
+            <div class="guide-card-head"><span class="guide-number">05</span><h3>Steiner na bancada 3D (mesma força)</h3></div>
+            <ul class="guide-steps">
+              <li><strong>Objetivo:</strong> Ver na bancada 3D como deslocar o eixo altera tanto a inércia (<var>I</var>) quanto o braço da força (<var>b</var>).</li>
+              <li><strong>O que fazer:</strong> Clique em <em>Aplicar d = 0,5 m em 3D</em> no disco (<var>M</var> = 2 kg, <var>R</var> = 0,5 m, <var>F</var> = 1 N).</li>
+              <li><strong>O que observar:</strong> O braço da força aumenta para <var>b</var> = <var>R</var> + <var>d</var> = 1,0 m (dobrando o torque para 1,0 N·m), mas a inércia triplica para 0,75 kg·m². A aceleração passa de 2 para ≈ 1,33 rad/s².</li>
+              <li><strong>Por que acontece:</strong> Afastar o eixo aumenta a alavanca (<var>b</var> = <var>R</var> + <var>d</var>), mas o momento de inércia cresce com o quadrado da distância (<var>Md</var>²), aumentando mais rápido que o torque.</li>
+            </ul>
+            <p class="guide-conclusion"><strong>Conclusão para apresentação:</strong> “Ao afastar o eixo mantendo a mesma força na borda oposta, o braço da força cresce linearmente (R + d), mas a inércia cresce com d², reduzindo a aceleração.”</p>
+            <div class="guide-actions">
+              <button type="button" class="btn btn-secondary btn-sm" data-guide="steiner-main">Aplicar d = 0,5 m em 3D</button>
+              <button type="button" class="btn btn-ghost btn-sm" data-guide="base">Voltar p/ d = 0 m</button>
+            </div>
+          </article>
         </div>
       </section>
 
+      <!-- BASE CONCEITUAL E EXPLICAÇÕES DIDÁTICAS -->
       <section class="theory panel-section" aria-labelledby="theory-title">
-        <div class="section-heading"><div><p class="eyebrow">Base conceitual</p><h2 id="theory-title">Fórmulas e hipóteses do laboratório</h2></div></div>
+        <div class="section-heading"><div><p class="eyebrow">Guia de estudo rápido</p><h2 id="theory-title">Conceitos essenciais para entender e apresentar</h2></div></div>
+        <p class="section-lead">Explicações diretas, com exemplos do dia a dia e fórmulas explicadas passo a passo para facilitar seu relatório ou apresentação.</p>
+
+        <div class="concepts-grid">
+          <div class="concept-card">
+            <h3>1. Torque (<var>τ</var>)</h3>
+            <p><strong>O que é:</strong> É a ação de uma força que provoca ou modifica a rotação de um objeto.</p>
+            <p><strong>No dia a dia:</strong> Empurrar uma porta perto da maçaneta (longe da dobradiça) gira a porta facilmente; empurrar perto da dobradiça quase não produz giro.</p>
+            <p class="concept-formula"><strong>Fórmula:</strong> <var>τ</var> = <var>b</var> · <var>F</var> (braço <var>b</var> multiplicado pela força perpendicular <var>F</var>, em N·m).</p>
+          </div>
+
+          <div class="concept-card">
+            <h3>2. Momento de inércia (<var>I</var>)</h3>
+            <p><strong>O que é:</strong> É a resistência do objeto a mudanças na sua velocidade de rotação. Quanto mais massa estiver longe do eixo, maior é o <var>I</var>.</p>
+            <p><strong>No dia a dia:</strong> Uma bailarina ou patinador gira mais devagar quando abre os braços (maior <var>I</var>) e gira mais rápido quando encolhe os braços perto do corpo (menor <var>I</var>).</p>
+            <p class="concept-formula"><strong>Fórmulas no centro (<var>d</var> = 0):</strong> Disco: ½<var>MR</var>² · Anel: <var>MR</var>² · Esfera: ⅖<var>MR</var>² · Barra: (1/12)<var>ML</var>² (em kg·m²).</p>
+          </div>
+
+          <div class="concept-card">
+            <h3>3. Aceleração angular (<var>α</var>)</h3>
+            <p><strong>O que é:</strong> Indica quanto a velocidade de rotação muda a cada segundo.</p>
+            <p><strong>No dia a dia:</strong> Quando você pedala mais forte na bicicleta, a roda ganha velocidade de giro mais rapidamente (maior <var>α</var>).</p>
+            <p class="concept-formula"><strong>Fórmula:</strong> <var>α</var> = <var>τ</var> / <var>I</var> (maior torque aumenta <var>α</var>; maior inércia diminui <var>α</var>, em rad/s²).</p>
+          </div>
+
+          <div class="concept-card">
+            <h3>4. Velocidade (<var>ω</var>) e Posição angular (<var>θ</var>)</h3>
+            <p><strong>O que são:</strong> A <strong>velocidade angular (<var>ω</var>)</strong> indica a rapidez e o sentido da rotação. A <strong>posição angular (<var>θ</var>)</strong> indica quanto o objeto girou desde o início (1 volta completa = 2π ≈ 6,28 rad).</p>
+            <p><strong>No dia a dia:</strong> O conta-giros de um motor mede a rapidez de rotação (<var>ω</var>), enquanto o número de voltas dadas pela roda mede o ângulo acumulado (<var>θ</var>).</p>
+            <p class="concept-formula"><strong>Fórmulas (partindo parado):</strong> <var>ω</var> = <var>α</var>·<var>t</var> (em rad/s) e <var>θ</var> = ½·<var>α</var>·<var>t</var>² (em rad).</p>
+          </div>
+
+          <div class="concept-card">
+            <h3>5. Centro de massa (CM) e Teorema de Steiner</h3>
+            <p><strong>O que são:</strong> O <strong>centro de massa</strong> é o ponto de equilíbrio da massa do objeto. O <strong>Teorema de Steiner</strong> explica como o momento de inércia aumenta quando tiramos o eixo de rotação do centro de massa por uma distância <var>d</var>.</p>
+            <p><strong>No dia a dia:</strong> Girar um cabo de vassoura segurando pelo meio (<var>d</var> = 0) é muito mais leve do que girá-lo segurando por uma das pontas (<var>d</var> &gt; 0).</p>
+            <p class="concept-formula"><strong>Fórmula de Steiner:</strong> <var>I</var> = <var>I</var><sub>cm</sub> + <var>M</var>·<var>d</var>² (a resistência cresce com o quadrado da distância <var>d</var>).</p>
+          </div>
+
+          <div class="concept-card">
+            <h3>6. Energia cinética (<var>K</var><sub>rot</sub>) e Trabalho (<var>W</var>)</h3>
+            <p><strong>O que são:</strong> O <strong>trabalho (<var>W</var>)</strong> é a energia transferida pela força ao girar o corpo por um ângulo <var>θ</var>. Sem atrito, todo esse trabalho vira <strong>energia cinética de rotação (<var>K</var><sub>rot</sub>)</strong>.</p>
+            <p><strong>Atenção ao dobrar a massa:</strong> Dobrar a massa <em>não</em> dobra a energia após 2 s! Com o dobro de massa, o objeto gira metade do ângulo (<var>θ</var> cai pela metade), então o trabalho <var>W</var> = <var>τ</var>·<var>θ</var> e a energia <var>K</var><sub>rot</sub> também caem pela metade.</p>
+            <p class="concept-formula"><strong>Conservação de energia:</strong> <var>W</var> = <var>τ</var>·<var>θ</var> = <var>K</var><sub>rot</sub> = ½·<var>I</var>·<var>ω</var>² (em joules, J).</p>
+          </div>
+        </div>
+
         <div class="theory-grid">
           <div>
-            <h3>Teorema de Steiner e momentos de inércia</h3>
-            <p>Quando o eixo de rotação é deslocado paralelamente por uma distância <strong>d</strong> em relação ao centro de massa (CM), o momento de inércia total é dado pelo <strong>Teorema dos Eixos Paralelos de Steiner</strong>:</p>
-            <p><strong>I = I<sub>cm</sub> + M d²</strong></p>
+            <h3>Diferença entre Raio (<var>R</var>), Distância do eixo (<var>d</var>) e Braço da força (<var>b</var>)</h3>
             <ul>
-              <li>Disco / cilindro maciço: <strong>I<sub>cm</sub> = ½ M R²</strong> (b<sub>cm</sub> = R)</li>
-              <li>Anel fino: <strong>I<sub>cm</sub> = M R²</strong> (b<sub>cm</sub> = R)</li>
-              <li>Esfera maciça: <strong>I<sub>cm</sub> = ⅖ M R²</strong> (b<sub>cm</sub> = R)</li>
-              <li>Barra fina: <strong>I<sub>cm</sub> = (1/12) M L²</strong> (b<sub>cm</sub> = L/2)</li>
+              <li><strong>Raio <var>R</var> (ou metade da barra <var>L</var>/2, chamado <var>b</var><sub>cm</sub>):</strong> é o tamanho do próprio objeto, medido do centro de massa até a borda onde a força é aplicada.</li>
+              <li><strong>Distância <var>d</var>:</strong> é a distância entre o eixo fixo de rotação e o centro de massa do objeto. Quando o eixo passa pelo centro, <var>d</var> = 0.</li>
+              <li><strong>Braço da força <var>b</var>:</strong> é a distância perpendicular entre o eixo de rotação e a linha de ação da força. Na bancada 3D, como a força é aplicada na borda oposta ao deslocamento do eixo, o braço total é <strong><var>b</var> = <var>R</var> + <var>d</var></strong> (ou <strong><var>b</var> = <var>L</var>/2 + <var>d</var></strong> na barra).</li>
             </ul>
           </div>
           <div>
-            <h3>Ponto de aplicação, atuador tangencial e conservação de energia</h3>
-            <p>Na bancada principal, o eixo fixo está na origem e o CM do corpo fica a uma distância <strong>d</strong>. A força <strong>F</strong> é aplicada na borda/extremidade oposta ao deslocamento do eixo, cujo vetor posição em relação ao eixo de rotação tem módulo <strong>b = |r| = b<sub>cm</sub> + d</strong>. Como <strong>F</strong> é perpendicular a <strong>r</strong> (tangencial à trajetória do ponto de aplicação, <strong>φ = 90°</strong>), o torque em relação ao eixo de rotação é:</p>
-            <p><strong>τ = (r × F)<sub>eixo</sub> = ±(b<sub>cm</sub> + d) F</strong></p>
-            <p><strong>Equivalência mecânica do atuador:</strong> A força tangencial contínua de módulo constante <strong>F ⊥ r</strong> (mantendo <strong>φ = 90°</strong> ao longo de múltiplas revoluções com braço efetivo <strong>b = b<sub>cm</sub> + d</strong>) representa um <strong>atuador tangencial ideal solidário à borda</strong> — ou o equivalente dinâmico de um sistema de fio inextensível tracionado em tambor cilíndrico concêntrico de raio efetivo <strong>b = b<sub>cm</sub> + d</strong> acoplado rigidamente ao sistema sem massa adicional.</p>
-            <p>Partindo do repouso (<strong>θ₀ = 0</strong>, <strong>ω₀ = 0</strong>) e sem forças dissipativas: <strong>α = τ/I</strong>, <strong>ω = αt</strong>, <strong>θ = ½αt²</strong>, e o trabalho rotacional realizado pelo torque converte-se integralmente em energia cinética rotacional pelo <strong>Teorema do Trabalho-Energia</strong>: <strong>W = τ Δθ = K<sub>rot</sub> = ½ I ω²</strong>, com potência instantânea <strong>P = dW/dt = τ ω</strong>.</p>
+            <h3>Valores teóricos × Valores simulados com incerteza</h3>
+            <p><strong>Valores teóricos:</strong> são calculados diretamente pelas fórmulas ideais da física, sem nenhum erro de leitura.</p>
+            <p><strong>Valores com incerteza (ruído de sensor):</strong> em um laboratório real, sensores ópticos e cronômetros sofrem pequenas oscilações aleatórias a cada leitura. Quando você ativa essa opção no painel, a tabela e os pontos do gráfico simulam essas leituras reais ao redor da curva teórica tracejada.</p>
+            <p><strong>Como avaliar o erro no seu relatório:</strong> não existe uma regra fixa universal (como dizer que “até 5% ou 10% é sempre aceitável”). A qualidade de uma medida depende dos instrumentos utilizados, do número de coletas e do objetivo do experimento.</p>
           </div>
         </div>
       </section>

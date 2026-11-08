@@ -1,43 +1,61 @@
-# Metodologia e validação
+# Relatório de Auditoria, Metodologia e Validação
 
-## Escopo
+## 1. Escopo do Modelo Físico
 
-O laboratório implementa corpos rígidos homogêneos, eixo fixo sem atrito (central ou deslocado paralelamente de uma distância `d ≥ 0` do centro de massa pelo Teorema de Steiner, `I = Icm + Md²`) e força tangencial constante aplicada a uma distância `b = b_cm + d` do eixo de rotação (`τ = (r × F)_eixo = ±(b_cm + d)F`), além de comparação dedicada sob torque fixo. As condições iniciais são `θ₀ = 0` e `ω₀ = 0`. O tempo é calculado no modelo físico (`src/physics.js`), sem depender da taxa de quadros; a animação apenas representa o estado calculado.
+O laboratório simula corpos rígidos homogêneos (disco maciço, anel fino, esfera maciça e barra fina) girando em torno de um eixo fixo sem atrito — posicionado no centro de massa ($d = 0$) ou deslocado paralelamente a uma distância $d \ge 0$ pelo **Teorema de Steiner ($I = I_{\text{cm}} + Md^2$)**.
 
-## Casos de referência
+Na bancada 3D, uma força tangencial constante $F$ é aplicada na borda oposta ao deslocamento do eixo, resultando em um braço de alavanca $b = b_{\text{cm}} + d$ e torque $\tau = \pm b \cdot F$. Nos experimentos comparativos, o simulador também permite comparar dois corpos sob o mesmo torque líquido. As condições iniciais são sempre o repouso ($\theta_0 = 0, \omega_0 = 0$).
 
-### 1. Eixo central (`d = 0 m`)
+---
 
-Para `M = 2 kg`, `R = 0,5 m`, `d = 0 m` e `F = 1 N`:
+## 2. Problemas Identificados na Auditoria e Correções Aplicadas
 
-| Corpo | I (kg·m²) | τ (N·m) | α (rad/s²) | ω em 2 s (rad/s) | θ em 2 s (rad) |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Disco | 0,25 | 0,5 | 2 | 4 | 4 |
-| Anel | 0,5 | 0,5 | 1 | 2 | 2 |
+### Problema 1 — Deriva de tempo nas amostras da tabela e do CSV (`requestAnimationFrame`)
+- **Causa raiz:** Anteriormente, `pushSample()` em `src/main.js` gravava amostras quando `s.t - lastDisc.t_s >= ui.sampleDt` dentro do loop de quadros do navegador (~16,7 ms). Isso gerava acúmulo de atraso a cada amostra (`0.208 s, 0.416 s, ..., 2.08 s`), fazendo com que o instante exato $t = 2{,}00\text{ s}$ não existisse no CSV ou apresentasse valores calculados em $t > 2\text{ s}$ (ex.: $\theta = 4{,}02\text{ rad}$ enquanto a tabela exibia `2,00` arredondado).
+- **Correção:** Criada a função `generateDiscreteSamples()` em `src/export.js` e `syncSamplesToTime()` em `src/main.js`, que avaliam o estado analítico e as leituras com ruído exatamente na grade temporal $t_k = k \cdot \Delta t$ ($0{,}00; 0{,}20; 0{,}40; \dots; 2{,}00\text{ s}$), garantindo precisão matemática absoluta independente do FPS.
 
-### 2. Teorema de Steiner (`I = Icm + Md²`)
+### Problema 2 — Incompatibilidade do CSV com Excel e LibreOffice Calc em Português (Brasil)
+- **Causa raiz:** O exportador usava ponto e vírgula (`;`) como separador de colunas, mas ponto (`.`) como separador decimal. No Excel e no Calc configurados em `pt-BR`, números como `1.03` ou `0.250` eram interpretados incorretamente como datas (`01/mar`) ou inteiros (`250`).
+- **Correção:** Adicionado suporte a `decimalSeparator: ','` em `formatCsvCell()` e `buildExperimentCsv()`. A interface agora oferece dois botões claros: **Exportar CSV (Excel / Calc BR)** (com `;` e vírgula decimal `,`) e **CSV Padrão Científico (ponto)** (com `;` e ponto decimal `.`, ideal para Python/SciDAVis/Origin).
 
-Para disco com `M = 2 kg` e `R = 0,5 m`:
+### Problema 3 — Parâmetros iniciais incoerentes com o Experimento Guiado 02 ("Dobrar a massa")
+- **Causa raiz:** Os padrões iniciais (`DEFAULTS` em `src/main.js`) usavam $M = 2\text{ kg}, R = 0{,}3\text{ m}, F = 0{,}3\text{ N}$ ($\alpha = 1\text{ rad/s}^2$). Ao clicar no Experimento Guiado 02 ("Dobrar a massa", que aplica $M = 4\text{ kg}, R = 0{,}5\text{ m}, F = 1\text{ N} \implies \alpha = 1\text{ rad/s}^2$), a aceleração permanecia em $1\text{ rad/s}^2$ antes e depois do clique.
+- **Correção:** Padronizado `DEFAULTS` para o caso de referência ($M = 2\text{ kg}, R = 0{,}5\text{ m}, F = 1\text{ N} \implies \alpha = 2\text{ rad/s}^2$) e adicionado o botão **"Restaurar caso base ($M = 2\text{ kg}$)"** no cartão do Experimento 02.
 
-- Com `d = 0 m`: `Icm = 0,25 kg·m²`, `Md² = 0 kg·m²`, `I = 0,25 kg·m²`.
-- Com `d = 0,5 m`: `Icm = 0,25 kg·m²`, `Md² = 0,50 kg·m²`, `I = 0,75 kg·m²`.
-- Sob torque fixo `τ = 0,5 N·m`: `α_central = 2 rad/s²` e `α_deslocado = 2/3 ≈ 0,6667 rad/s²`.
-- Na bancada acionada por força `F = 1 N` na borda oposta (`b = R + d = 1,0 m`): `τ = 1,0 N·m` e `α = 4/3 ≈ 1,333 rad/s²`.
-- Ao dobrar `d` (ex.: de `0,25 m` para `0,50 m`), o termo adicional `Md²` quadruplica (de `0,125` para `0,50 kg·m²`).
+### Problema 4 — Dados desatualizados ao alternar ruído ou passo $\Delta t$ e ausência de CSV nos comparativos
+- **Causa raiz:** Alterar a chave de incerteza experimental, o nível de ruído ou o intervalo de coleta ($\Delta t = 0{,}20\text{ s}$ / $0{,}50\text{ s}$) com a simulação pausada/concluída não atualizava a tabela nem o CSV. Além disso, os dois experimentos comparativos não possuíam exportação CSV, e a coluna `energia_cinetica_J` no modo completo misturava valor medido com ruído e trabalho teórico `trabalho_J`.
+- **Correção:**
+  - `rebuildSamplesAndChart()` reconstrói imediatamente a tabela, os gráficos e o buffer CSV ao alterar configurações de amostragem/ruído.
+  - No modo completo, `energia_cinetica_J` e `trabalho_J` preservam os valores teóricos exatos ($K_{\text{rot}} = W$), enquanto o modo cego exporta `energia_cinetica_medida_J`.
+  - Implementadas `buildComparisonCsv()` e `buildSteinerComparisonCsv()` com botões de exportação nos dois comparativos.
+  - Adicionado seletor **"Parar automaticamente em"** (`2 s`, `5 s`, `10 s`, `20 s`) para permitir parar exatamente em $t = 2{,}00\text{ s}$.
 
-Esses casos são cobertos por testes unitários em `tests/physics.test.js` e `tests/export.test.js` e podem ser reproduzidos pelos experimentos guiados no navegador.
+---
 
-## Validação automatizada executada
+## 3. Verificação dos Testes Obrigatórios em $t = 2\text{ s}$ (Sem Incertezas)
 
-Em 03/11/2026, nesta cópia local, foram executados com sucesso:
+Todos os cenários abaixo foram verificados nos cálculos (`src/physics.js`), na interface (`src/main.js`), nos gráficos (`src/charts.js`) e nas planilhas exportadas (`src/export.js`):
 
-1. `npm test` — 24 testes aprovados em 2 arquivos (`tests/physics.test.js` e `tests/export.test.js`). Cobre fórmulas de inércia no CM (`Icm`), termo de Steiner (`Md²`), inércia total (`I = Icm + Md²`) para as quatro geometrias, braço de alavanca (`b = b_cm + d`), torque no eixo (`τ = ±bF` e override de torque fixo), cinemática, proporcionalidade (dobro de força, dobro de massa, variação de raio, quadruplicação de `Md²` ao dobrar `d`), mapeamento angular para Canvas 2D (`canvasRotationAngle`), limites, integração temporal independente de FPS e de velocidade de reprodução, sincronia dos comparativos, pausa/reinício, formatação, CSV com colunas de Steiner e os casos de referência.
-2. `npm run build` — build Vite concluído sem erros ou avisos. Valida a composição dos módulos, inclusive Three.js, gráficos (incluindo `I(d)`), comparações e exportação.
-3. Inspeção automatizada no navegador Google Chrome (com WebGL ativo): verificação visual e funcional da bancada 3D com eixo central (`d = 0`) e deslocado (`d = 0,5 m`), das quatro geometrias, dos cinco roteiros guiados, do comparativo disco × anel e do comparativo de Steiner sob mesmo torque nos sentidos anti-horário (+) e horário (−), da duplicação de `d`, do tratamento de entradas inválidas e força/torque zero, do fallback de perda/restauração de contexto WebGL e da responsividade em desktop (1440×950) e celular (375×812).
+| Cenário de Teste | $M$ (kg) | $R$ (m) | $d$ (m) | $F$ (N) | $I$ ($\text{kg}\cdot\text{m}^2$) | $\tau$ ($\text{N}\cdot\text{m}$) | $\alpha$ ($\text{rad/s}^2$) | $\omega(2\text{ s})$ (rad/s) | $\theta(2\text{ s})$ (rad) | $K_{\text{rot}}(2\text{ s})$ (J) | $W(2\text{ s})$ (J) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| **1. Disco maciço (obrigatório)** | 2,0 | 0,50 | 0,00 | 1,00 | **0,25** | **0,50** | **2,00** | **4,00** | **4,00** | **2,00** | **2,00** |
+| **2. Anel fino** | 2,0 | 0,50 | 0,00 | 1,00 | **0,50** | **0,50** | **1,00** | **2,00** | **2,00** | **1,00** | **1,00** |
+| **3. Dobrar a massa (disco)** | 4,0 | 0,50 | 0,00 | 1,00 | **0,50** | **0,50** | **1,00** | **2,00** | **2,00** | **1,00** | **1,00** |
+| **4. Dobrar a força (disco)** | 2,0 | 0,50 | 0,00 | 2,00 | **0,25** | **1,00** | **4,00** | **8,00** | **8,00** | **8,00** | **8,00** |
+| **5. Steiner sob mesmo torque** | 2,0 | 0,50 | 0,50 | 0,50 | **0,75** | **0,50** | **0,6667** | **1,3333** | **1,3333** | **0,6667** | **0,6667** |
+| **6. Steiner na bancada 3D** | 2,0 | 0,50 | 0,50 | 1,00 | **0,75** | **1,00** | **1,3333** | **2,6667** | **2,6667** | **2,6667** | **2,6667** |
+| **7. Sentido horário (disco)** | 2,0 | 0,50 | 0,00 | 1,00 | **0,25** | **−0,50** | **−2,00** | **−4,00** | **−4,00** | **2,00** | **2,00** |
 
-## Limites conhecidos
+---
 
-- Os gráficos representam dados numéricos analíticos de corpos rígidos ideais sem atrito; não são medições de um experimento físico real.
-- O deslocamento do eixo contempla apenas eixos paralelos ao eixo central original (`I = Icm + Md²`), com haste de acoplamento de massa desprezível.
-- A visualização 3D requer WebGL. Sem ele, controles, valores, gráficos, CSV e comparações 2D continuam disponíveis.
-- Em rotações muito rápidas, a animação pode sofrer aliasing visual; os valores e curvas permanecem calculados pelo mesmo tempo simulado.
+## 4. Validação Automatizada Executada
+
+Foram executados e aprovados nesta auditoria:
+
+1. `npm test` — **29 testes automatizados aprovados** em 2 suítes (`tests/physics.test.js` e `tests/export.test.js`), cobrindo:
+   - Fórmulas de momento de inércia ($I_{\text{cm}}$, $Md^2$, $I = I_{\text{cm}} + Md^2$) e braço ($b = b_{\text{cm}} + d$) para as 4 geometrias;
+   - Teste obrigatório completo do disco em $t = 2\text{ s}$ ($I = 0{,}25$, $\tau = 0{,}5$, $\alpha = 2$, $\omega = 4$, $\theta = 4$, $K_{\text{rot}} = 2\text{ J}$, $W = 2\text{ J}$);
+   - Anel fino, duplicação da massa ($K_{\text{rot}} = W = 1\text{ J}$), duplicação da força ($K_{\text{rot}} = W = 8\text{ J}$) e Teorema de Steiner sob mesmo torque e na bancada 3D;
+   - Amostragem discreta analítica exata (`generateDiscreteSamples`) sem deriva de quadros;
+   - Ordenação cronológica, remoção de duplicatas, preservação de sinais no sentido horário e exportação CSV nos formatos Excel/Calc BR (vírgula decimal) e Científico (ponto decimal), além dos CSVs comparativos.
+2. `npm run build` — Build de produção com Vite concluído sem erros.
