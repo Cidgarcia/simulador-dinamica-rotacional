@@ -7,14 +7,16 @@ import {
   canvasRotationAngle,
   computeDynamics,
   computeEnergetics,
+  createSeededRng,
   kinematics,
   leverArm,
+  mixSeed,
   momentOfInertia,
   sampleExperimentalState,
   validateParams,
   wrapAngle,
 } from "../src/physics.js";
-import { formatFixed, formatNumber, parseDecimal } from "../src/format.js";
+import { formatFixed, formatNumber, formatWithSigma, parseDecimal } from "../src/format.js";
 
 const base = {
   geometry: "disco",
@@ -410,5 +412,93 @@ describe("conservação de energia e incerteza experimental (Box-Muller)", () =>
       12
     );
     expect(noisy.sigmaKineticEnergy).toBeCloseTo(real.I * Math.abs(real.omega) * expectedSigmaOmega, 12);
+  });
+});
+
+describe("Box-Muller estatístico e ruído (auditoria)", () => {
+  it("1 000 000 de amostras com semente: média≈0, σ≈1, assimetria≈0, curtose≈0, regra 68-95-99,7", () => {
+    const rng = createSeededRng(12345);
+    const n = 1_000_000;
+    const zs = new Float64Array(n);
+    let sum = 0;
+    for (let i = 0; i < n; i++) {
+      zs[i] = boxMullerRandom(rng);
+      sum += zs[i];
+    }
+    const mean = sum / n;
+    let s2 = 0, s3 = 0, s4 = 0, c1 = 0, c2 = 0, c3 = 0;
+    for (let i = 0; i < n; i++) {
+      const d = zs[i] - mean;
+      s2 += d ** 2;
+      s3 += d ** 3;
+      s4 += d ** 4;
+      const a = Math.abs(zs[i]);
+      if (a < 1) c1++;
+      if (a < 2) c2++;
+      if (a < 3) c3++;
+    }
+    const sd = Math.sqrt(s2 / n);
+    expect(Math.abs(mean)).toBeLessThan(0.005);
+    expect(sd).toBeCloseTo(1, 2);
+    expect(Math.abs(s3 / n / sd ** 3)).toBeLessThan(0.02);
+    expect(Math.abs(s4 / n / sd ** 4 - 3)).toBeLessThan(0.03);
+    expect(c1 / n).toBeCloseTo(0.6827, 2);
+    expect(c2 / n).toBeCloseTo(0.9545, 2);
+    expect(c3 / n).toBeCloseTo(0.9973, 2);
+  });
+
+  it("createSeededRng é determinístico e mixSeed separa fluxos e índices", () => {
+    const a = createSeededRng(5);
+    const b = createSeededRng(5);
+    expect([a(), a(), a()]).toEqual([b(), b(), b()]);
+    expect(mixSeed(5, 3, 0)).not.toBe(mixSeed(5, 4, 0));
+    expect(mixSeed(5, 3, 0)).not.toBe(mixSeed(5, 3, 1));
+    expect(mixSeed(5, 3, 0)).toBe(mixSeed(5, 3, 0));
+  });
+
+  it("σ medido em α e θ (t = 2 s, σrel = 2 %) reproduz 2 % e não altera o estado real", () => {
+    const dyn = computeDynamics({ geometry: "disco", mass: 2, size: 0.5, axisOffset: 0, force: 1, direction: 1 });
+    const k = kinematics(dyn.alpha, 2);
+    const real = { t: 2, ...dyn, ...k, ...computeEnergetics(dyn.I, dyn.tau, k.omega, k.theta) };
+    const snapshot = JSON.stringify(real);
+    const rng = createSeededRng(7);
+    const m = 100_000;
+    let sa = 0, sa2 = 0, st = 0, st2 = 0;
+    for (let i = 0; i < m; i++) {
+      const s = sampleExperimentalState(real, { enabled: true, sigmaRel: 0.02, rng });
+      sa += s.alphaMeasured; sa2 += s.alphaMeasured ** 2;
+      st += s.thetaMeasured; st2 += s.thetaMeasured ** 2;
+    }
+    const ma = sa / m, mt = st / m;
+    expect((Math.sqrt(sa2 / m - ma * ma) / real.alpha) * 100).toBeCloseTo(2, 1);
+    expect((Math.sqrt(st2 / m - mt * mt) / real.theta) * 100).toBeCloseTo(2, 1);
+    expect(JSON.stringify(real)).toBe(snapshot);
+  });
+
+  it("em t = 0 não há ruído em θ e ω (sem piso de 0,05), mas os sorteios continuam sendo consumidos", () => {
+    const dyn = computeDynamics({ geometry: "disco", mass: 2, size: 0.5, axisOffset: 0, force: 1, direction: 1 });
+    const real = { t: 0, ...dyn, omega: 0, theta: 0, kineticEnergy: 0, work: 0, power: 0 };
+    let calls = 0;
+    const rng = () => { calls++; return 0.37; };
+    const s = sampleExperimentalState(real, { enabled: true, sigmaRel: 0.05, rng });
+    expect(s.thetaMeasured).toBe(0);
+    expect(s.omegaMeasured).toBe(0);
+    expect(s.sigmaTheta).toBe(0);
+    expect(s.sigmaOmega).toBe(0);
+    expect(calls).toBe(6); // 3 grandezas × 2 uniformes
+  });
+});
+
+describe("formatWithSigma (algarismos significativos metrológicos)", () => {
+  it("σ com 2 algarismos significativos e valor com as mesmas casas", () => {
+    expect(formatWithSigma(2.0001, 0.0207)).toBe("2,000 ± 0,021");
+    expect(formatWithSigma(4.0123, 0.08)).toBe("4,012 ± 0,080");
+    expect(formatWithSigma(12.3456, 1.234)).toBe("12,3 ± 1,2");
+  });
+  it("σ muito pequena não vira ± 0,00; σ inválida cai no valor com casas fixas", () => {
+    expect(formatWithSigma(1, 0.00031)).toBe("1,00000 ± 0,00031");
+    expect(formatWithSigma(1.5, 0)).toBe("1,50");
+    expect(formatWithSigma(1.5, NaN)).toBe("1,50");
+    expect(formatWithSigma(NaN, 0.1)).toBe("—");
   });
 });

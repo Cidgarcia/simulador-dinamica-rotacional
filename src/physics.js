@@ -242,18 +242,49 @@ export function boxMullerRandom(rng = Math.random) {
 }
 
 /**
- * Aplica ruído gaussiano experimental às grandezas cinemáticas reais sem afetar o estado físico 3D:
+ * Gerador pseudoaleatório determinístico (mulberry32) com semente inteira.
+ * Mesma semente → mesma sequência em u ∈ [0, 1); usado para ensaios reprodutíveis.
+ */
+export function createSeededRng(seed) {
+  let a = Number(seed) >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * Deriva uma semente independente para a amostra de índice `index` (e fluxo `stream`)
+ * a partir da semente do usuário. Assim o ruído de cada instante não depende da ordem
+ * nem da taxa de quadros em que as amostras foram geradas.
+ */
+export function mixSeed(seed, index, stream = 0) {
+  let h = (Number(seed) >>> 0) ^ Math.imul(index + 1, 0x9e3779b1) ^ Math.imul(stream + 1, 0x85ebca6b);
+  h = Math.imul(h ^ (h >>> 16), 0x7feb352d);
+  h = Math.imul(h ^ (h >>> 15), 0x846ca68b);
+  return (h ^ (h >>> 16)) >>> 0;
+}
+
+/**
+ * Aplica ruído gaussiano experimental às grandezas cinemáticas reais sem afetar o estado físico 3D.
+ * Modelo MULTIPLICATIVO (erro proporcional ao valor), com σ_rel = desvio-padrão relativo (1σ),
+ * e não um limite máximo de erro:
  * - ω_medido(t) = ω_real(t) + Z_ω · (σ_rel · max(|ω_real(t)|, 0.05))
  * - θ_medido(t) = θ_real(t) + Z_θ · (σ_rel · max(|θ_real(t)|, 0.05))
  * - α_medido(t) = α_real · (1 + Z_α · σ_rel)
+ * Em t = 0 as condições iniciais (θ₀ = ω₀ = 0) são impostas, portanto σ_ω = σ_θ = 0 (sem piso).
+ * Os sorteios Z continuam sendo consumidos para manter a reprodutibilidade por amostra.
  */
 export function sampleExperimentalState(realState, { enabled = false, sigmaRel = 0.02, rng = Math.random } = {}) {
   if (!realState) return null;
   const { I, tau, alpha, omega, theta } = realState;
   const sigma = enabled && isFiniteNumber(sigmaRel) && sigmaRel > 0 ? sigmaRel : 0;
+  const isInitialInstant = realState.t === 0;
 
-  const sigmaOmega = sigma * Math.max(Math.abs(omega), 0.05);
-  const sigmaTheta = sigma * Math.max(Math.abs(theta), 0.05);
+  const sigmaOmega = isInitialInstant ? 0 : sigma * Math.max(Math.abs(omega), 0.05);
+  const sigmaTheta = isInitialInstant ? 0 : sigma * Math.max(Math.abs(theta), 0.05);
   const sigmaAlpha = Math.abs(alpha) * sigma;
   const energetics = computeEnergetics(I, tau, omega, theta);
 

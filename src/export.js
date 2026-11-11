@@ -2,9 +2,14 @@ import {
   GEOMETRIES,
   computeDynamics,
   computeEnergetics,
+  createSeededRng,
   kinematics,
+  mixSeed,
   sampleExperimentalState,
 } from './physics.js';
+
+/** Algarismos significativos gravados no CSV (erro de arredondamento < 5×10⁻⁸ %). */
+export const CSV_SIGNIFICANT_DIGITS = 10;
 
 /**
  * Formata uma célula de CSV respeitando o separador decimal ('.' ou ',')
@@ -13,7 +18,7 @@ import {
 export function formatCsvCell(value, { decimalSeparator = '.', columnSeparator = ';' } = {}) {
   let text;
   if (typeof value === 'number' && Number.isFinite(value)) {
-    const normalized = Object.is(value, -0) ? 0 : Number(value.toFixed(6));
+    const normalized = Object.is(value, -0) ? 0 : Number(value.toPrecision(CSV_SIGNIFICANT_DIGITS));
     text = String(normalized);
     if (decimalSeparator === ',') {
       text = text.replace('.', ',');
@@ -42,11 +47,13 @@ export function generateDiscreteSamples({
   noiseSigmaRel = 0.02,
   noiseDraws = [],
   rng = Math.random,
+  seed = null,
 }) {
   const targetTime = upToTime ?? maxTime;
   if (!dynamics || !Number.isFinite(targetTime) || targetTime < 0) return [];
   const dt = Number.isFinite(sampleDt) && sampleDt > 0 ? sampleDt : 0.2;
   const steps = Math.floor((targetTime + 1e-9) / dt);
+  const hasSeed = seed !== null && seed !== undefined && Number.isFinite(Number(seed));
   const result = [];
 
   for (let k = 0; k <= steps; k++) {
@@ -57,10 +64,10 @@ export function generateDiscreteSamples({
 
     let draw = noiseDraws[k];
     if (!draw) {
-      let call = 0;
       const drawValues = [];
+      const sourceRng = hasSeed ? createSeededRng(mixSeed(seed, k, 0)) : rng;
       const capturingRng = () => {
-        const v = rng();
+        const v = sourceRng();
         drawValues.push(v);
         return v;
       };
@@ -130,10 +137,10 @@ function normalizeSamplesList(samples) {
 /**
  * Produz um CSV com cabeçalho de metadados comentados (# Corpo, # M, # R/L, # d, # I, # F, # Ruido (%))
  * e as amostras discretas de coleta experimental.
- * - Modo completo (blindMode = false): t_s, theta_teorico_rad, theta_medido_rad,
- *   omega_teorico_rads, omega_medido_rads, alfa_medido_rads2, energia_cinetica_J, trabalho_J.
+ * - Modo completo (blindMode = false): t_s, theta_teor_rad, theta_med_rad,
+ *   omega_teor_rads, omega_med_rads, alfa_med_rads2, K_rot_J, W_J.
  * - Modo Cego para Relatório (blindMode = true): exporta APENAS os dados brutos que um sensor
- *   real leria (t_s, theta_medido_rad, omega_medido_rads, alfa_medido_rads2, energia_cinetica_medida_J),
+ *   real leria (t_s, theta_med_rad, omega_med_rads, alfa_med_rads2, K_rot_med_J),
  *   ocultando as previsões analíticas no cabeçalho e nas colunas.
  *
  * Opções de formatação regional:
@@ -149,6 +156,7 @@ export function buildExperimentCsv({
   blindMode = false,
   decimalSeparator = '.',
   columnSeparator = ';',
+  noiseSeed = null,
 }) {
   const geometry = GEOMETRIES[params?.geometry];
   if (!geometry || !dynamics) throw new Error('Dados insuficientes para exportar o experimento.');
@@ -159,11 +167,19 @@ export function buildExperimentCsv({
   const Icm = dynamics.Icm ?? dynamics.I;
   const Id = dynamics.Id ?? 0;
   const noisePct = noiseEnabled ? Number((noiseSigmaRel * 100).toFixed(2)) : 0;
-  const incTempo = decimalSeparator === ',' ? '+-0,01' : '+-0.01';
+  // Incerteza de tipo B do cronômetro: só é declarada com o ruído ligado. Os instantes t_s da
+  // tabela são NOMINAIS (k·Δt); a incerteza não é aplicada às leituras.
+  const incTempo = noiseEnabled
+    ? `${decimalSeparator === ',' ? '+-0,01' : '+-0.01'} (declarada; t_s nominal, nao perturbado)`
+    : '0 (ruido desligado)';
+  const seedLabel =
+    noiseSeed !== null && noiseSeed !== undefined && Number.isFinite(Number(noiseSeed))
+      ? String(Math.trunc(Number(noiseSeed)))
+      : 'aleatoria (nao reproduzivel)';
 
   const commentHeader = [
     `# Laboratório Virtual de Dinâmica de Rotação e Momento de Inércia — UNIVASF`,
-    `#Modo de Exportacao: ${blindMode ? 'Modo Cego para Relatorio (apenas leituras de sensor)' : 'Completo (teorico + experimental)'}`,
+    `# Modo de Exportacao: ${blindMode ? 'Modo Cego para Relatorio (apenas leituras de sensor)' : 'Completo (teorico + experimental)'}`,
     `# Corpo: ${geometry.nome} (${geometry.id})`,
     `# M (kg): ${cell(params.mass)}`,
     `# ${dimLabel}: ${cell(params.size)}`,
@@ -176,27 +192,22 @@ export function buildExperimentCsv({
     `# Sentido: ${params.direction > 0 ? 'anti-horario (+)' : 'horario (-)'}`,
     `# Torque (N.m): ${cell(dynamics.tau)}`,
     ...(blindMode ? [] : [`# Alfa teorico (rad/s2): ${cell(dynamics.alpha)}`]),
-    `# Ruido (%): ${cell(noisePct)}`,
+    `# Ruido (%): ${cell(noisePct)} (desvio-padrao relativo, 1 sigma; modelo multiplicativo)`,
+    `# Semente do ruido: ${noiseEnabled ? seedLabel : 'nao se aplica (ruido desligado)'}`,
     `# Incerteza instrumental de tempo (s): ${incTempo}`,
   ];
 
   const columns = blindMode
-    ? [
-        't_s',
-        'theta_medido_rad',
-        'omega_medido_rads',
-        'alfa_medido_rads2',
-        'energia_cinetica_medida_J',
-      ]
+    ? ['t_s', 'theta_med_rad', 'omega_med_rads', 'alfa_med_rads2', 'K_rot_med_J']
     : [
         't_s',
-        'theta_teorico_rad',
-        'theta_medido_rad',
-        'omega_teorico_rads',
-        'omega_medido_rads',
-        'alfa_medido_rads2',
-        'energia_cinetica_J',
-        'trabalho_J',
+        'theta_teor_rad',
+        'theta_med_rad',
+        'omega_teor_rads',
+        'omega_med_rads',
+        'alfa_med_rads2',
+        'K_rot_J',
+        'W_J',
       ];
 
   const cleanSamples = normalizeSamplesList(samples);
@@ -435,12 +446,33 @@ export function buildSteinerComparisonCsv({
   return `\uFEFF${allLines.join('\r\n')}\r\n`;
 }
 
+/**
+ * Carimbo de data/hora no fuso LOCAL do usuário, seguro para nomes de arquivo:
+ * AAAA-MM-DDTHH-MM-SS (diferente de toISOString(), que usa UTC).
+ */
+export function localTimestamp(date = new Date()) {
+  const p = (n) => String(n).padStart(2, '0');
+  return (
+    `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}` +
+    `T${p(date.getHours())}-${p(date.getMinutes())}-${p(date.getSeconds())}`
+  );
+}
+
+/**
+ * Dispara o download de um CSV. O link é anexado ao DOM antes do clique (exigido por alguns
+ * navegadores, como o Firefox) e a URL do Blob só é revogada depois de o navegador iniciar o download.
+ */
 export function downloadCsv(filename, content) {
   const link = document.createElement('a');
   const blob = new Blob([content], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   link.href = url;
   link.download = filename;
+  link.style.display = 'none';
+  document.body.appendChild(link);
   link.click();
-  URL.revokeObjectURL(url);
+  setTimeout(() => {
+    link.remove();
+    URL.revokeObjectURL(url);
+  }, 1000);
 }

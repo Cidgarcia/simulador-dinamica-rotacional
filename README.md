@@ -34,7 +34,7 @@ Explore de forma visual e intuitiva como a **massa**, o **formato do corpo**, o 
 - Ajustar **massa ($M$)**, **raio ($R$) ou comprimento ($L$)**, **distância do eixo ($d$)**, **força tangencial ($F$)** e **sentido do giro**.
 - Escolher o **tempo alvo de parada automática** (`2 s`, `5 s`, `10 s` ou `20 s`) para medir valores exatos em instantes específicos (como $t = 2{,}00\text{ s}$).
 - Acompanhar em tempo real: $I_{\text{cm}}$, $Md^2$, $I$, braço $b$, torque $\tau$, $\alpha$, $\omega$, $\theta$, **Energia Cinética Rotacional ($K_{\text{rot}}$)**, **Trabalho do Torque ($W$)** e **Potência Instantânea ($P$)**.
-- Ativar a **incerteza experimental (ruído de sensor)** ($\pm 1\%$, $\pm 2\%$ ou $\pm 5\%$) para comparar valores teóricos ideais com leituras simuladas de laboratório.
+- Ativar a **incerteza experimental (ruído de sensor)** ($\sigma_{\text{rel}} = 1\%$, $2\%$ ou $5\%$, desvio-padrão) para comparar valores teóricos ideais com leituras simuladas de laboratório.
 - Analisar os **gráficos sincronizados** de $\alpha(t)$ (reta horizontal), $\omega(t)$ (reta inclinada) e $\theta(t)$ (parábola), além da curva quadrática $I(d)$ do Teorema de Steiner.
 - Executar **dois experimentos comparativos lado a lado**:
   1. **Disco maciço × Anel fino** (mesma massa, raio, força e torque).
@@ -96,13 +96,33 @@ Explore de forma visual e intuitiva como a **massa**, o **formato do corpo**, o 
 
 ### Valores teóricos vs. valores simulados com incerteza
 - **Valores teóricos:** seguem exatamente as equações matemáticas ideais, sem ruído.
-- **Valores com incerteza:** simulam pequenas flutuações aleatórias típicas de sensores ópticos (*photogates*) usando distribuição normal (Box-Muller) nos níveis escolhidos ($\pm 1\%$, $\pm 2\%$ ou $\pm 5\%$).
+- **Valores com incerteza:** simulam flutuações aleatórias de sensores usando distribuição normal (Box-Muller). O nível escolhido ($1\%$, $2\%$ ou $5\%$) é o **desvio-padrão relativo** $\sigma_{\text{rel}}$ (1σ), **não** um limite máximo de erro: cerca de $4{,}5\%$ das leituras ficam além de $2\sigma$.
+- **Modelo multiplicativo:** o erro é proporcional ao valor lido ($\omega_{\text{med}} = \omega + Z\,\sigma_{\text{rel}}\max(|\omega|, 0{,}05)$; idem para $\theta$; $\alpha_{\text{med}} = \alpha(1 + Z\,\sigma_{\text{rel}})$). Não é um modelo de temporização de *photogate*. Em $t = 0$ **não há ruído** ($\theta_0 = \omega_0 = 0$ são condições impostas).
+- **Incerteza do cronômetro ($\pm 0{,}01$ s):** apenas **declarada** (tipo B). Os instantes $t$ da tabela e do CSV são nominais ($k\,\Delta t$) e não são perturbados.
+- **Semente do ruído (opcional):** informe um inteiro ≥ 0 no campo *Semente do ruído* e o mesmo ensaio gerará sempre as mesmas leituras e o mesmo CSV (reprodutível). Vazio = aleatório.
+- **Algarismos significativos:** na tela, a incerteza é arredondada a 2 algarismos significativos e o valor usa as mesmas casas decimais (critério GUM/ABNT).
 - **Importante:** o ruído afeta **apenas as leituras do sensor simulado**. O movimento físico real do corpo 3D e as equações fundamentais não são distorcidos. Não existem limites fixos universais (como 5% ou 10%) para decidir se um erro experimental é aceitável: a avaliação depende da precisão do instrumento e do método de análise empregado.
 
 ### Precisão da amostragem e formatos de CSV
 - As amostras da tabela e do CSV são calculadas nos **instantes exatos** múltiplos de $\Delta t$ ($0{,}00\text{ s}; 0{,}20\text{ s}; 0{,}40\text{ s}; \dots; 2{,}00\text{ s}$), sem atraso ou deriva da taxa de quadros do monitor.
 - As linhas são ordenadas cronologicamente, sem duplicatas, preservando o sinal negativo quando o sentido é horário ($-$).
+- Os números do CSV são gravados com **10 algarismos significativos** (erro de arredondamento < $5\times10^{-8}\%$).
 - Você pode exportar em **Excel / Calc BR** (separador `;` e vírgula decimal `,`) ou **CSV Padrão Científico** (separador `;` e ponto decimal `.`), além do **Modo Cego para Relatório** (que oculta as colunas teóricas para atividades de regressão linear).
+- Nomes dos arquivos usam a **hora local** (`AAAA-MM-DDTHH-MM-SS`).
+
+#### Colunas do CSV da bancada principal
+| Modo completo | Significado | Modo cego |
+|---|---|---|
+| `t_s` | tempo nominal (s) | `t_s` |
+| `theta_teor_rad` / `theta_med_rad` | θ teórico / medido (rad) | `theta_med_rad` |
+| `omega_teor_rads` / `omega_med_rads` | ω teórico / medido (rad/s) | `omega_med_rads` |
+| `alfa_med_rads2` | α medido (rad/s²); o α teórico está no cabeçalho | `alfa_med_rads2` |
+| `K_rot_J` | energia cinética rotacional teórica (J) | `K_rot_med_J` (medida) |
+| `W_J` | trabalho do torque teórico (J) | — |
+
+#### Abrindo o CSV
+- As linhas iniciais começam com `#` (metadados: corpo, M, R/L, d, I, F, torque, ruído, semente...). **O Excel/Calc não trata `#` como comentário**: elas aparecem como linhas da planilha; apague-as antes de gerar gráficos, ou importe a partir da linha do cabeçalho `t_s`.
+- Em Python/pandas: `pd.read_csv(arquivo, sep=';', comment='#', encoding='utf-8-sig', decimal=',')` (use `decimal='.'` para o CSV padrão científico).
 
 ---
 
@@ -117,7 +137,7 @@ npm run dev
 
 | Comando | Função |
 |---|---|
-| `npm test` | Executa os 29 testes automatizados do modelo físico e da exportação CSV. |
+| `npm test` | Executa os 43 testes automatizados do modelo físico e da exportação CSV. |
 | `npm run build` | Gera a versão de produção na pasta `dist/`. |
 | `npm run preview` | Abre uma prévia local da versão de produção após o build. |
 

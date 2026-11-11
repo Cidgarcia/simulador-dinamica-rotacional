@@ -145,14 +145,18 @@
             </label>
             <div class="noise-options" id="noise-options" hidden>
               <div class="noise-subrow">
-                <span class="noise-sublabel">Oscilação média do sensor (<var>σ</var><sub>rel</sub>)</span>
+                <span class="noise-sublabel">Desvio-padrão relativo do sensor (<var>σ</var><sub>rel</sub>, 1σ)</span>
                 <div class="segmented segmented--3" role="radiogroup" aria-label="Nível de ruído relativo do sensor">
                   <label><input type="radio" name="noiseLevel" value="0.01" /><span>1%</span></label>
                   <label><input type="radio" name="noiseLevel" value="0.02" checked /><span>2%</span></label>
                   <label><input type="radio" name="noiseLevel" value="0.05" /><span>5%</span></label>
                 </div>
               </div>
-              <p class="hint">Simula pequenas variações de leitura de sensores reais (e ±0,01 s no cronômetro). As equações físicas e o movimento 3D não são alterados.</p>
+              <div class="noise-subrow">
+                <label class="noise-sublabel" for="noise-seed">Semente do ruído (opcional, inteiro ≥ 0)</label>
+                <input type="number" id="noise-seed" name="noiseSeed" min="0" max="4294967295" step="1" inputmode="numeric" placeholder="vazio = aleatório" autocomplete="off" />
+              </div>
+              <p class="hint">Simula ruído gaussiano proporcional ao valor lido: σ é o <strong>desvio-padrão</strong> (1σ), não um limite máximo de erro — cerca de 5% das leituras ficam além de 2σ. A incerteza do cronômetro (±0,01 s) é apenas declarada: os instantes <var>t</var> são nominais. Em <var>t</var> = 0 não há ruído (θ₀ = ω₀ = 0 são condições impostas). Com uma semente, o mesmo ensaio gera sempre o mesmo CSV. As equações físicas e o movimento 3D não são alterados.</p>
             </div>
             <div class="noise-subrow sample-rate-row">
               <span class="noise-sublabel">Intervalo entre medidas na tabela (<var>Δt</var>)</span>

@@ -856,6 +856,16 @@ input[type='range']:focus-visible::-moz-range-thumb {
 .sample-rate-row {
   margin-top: 2px;
 }
+.noise-subrow input[type='number'] {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(41, 211, 240, 0.35);
+  background: rgba(6, 17, 42, 0.6);
+  color: var(--text-1, inherit);
+  font: inherit;
+  font-size: 13px;
+}
 
 .btn {
   display: inline-flex;

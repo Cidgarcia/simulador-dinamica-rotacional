@@ -46,6 +46,20 @@ function toSup(n) {
     .join('');
 }
 
+/**
+ * Valor ± incerteza pelo critério metrológico (GUM/ABNT): a incerteza é arredondada a
+ * `sigDigits` algarismos significativos (padrão 2) e o valor é escrito com as mesmas casas decimais.
+ * Sem incerteza válida (σ ≤ 0 ou não finita), devolve o valor com `fallbackDigits` casas fixas.
+ */
+export function formatWithSigma(value, sigma, { sigDigits = 2, fallbackDigits = 2 } = {}) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return INVALID;
+  if (typeof sigma !== 'number' || !Number.isFinite(sigma) || sigma <= 0) {
+    return formatFixed(value, fallbackDigits);
+  }
+  const decimals = Math.min(10, Math.max(0, sigDigits - 1 - Math.floor(Math.log10(sigma))));
+  return `${formatFixed(value, decimals)} ± ${formatFixed(sigma, decimals)}`;
+}
+
 /** Converte texto digitado (aceita vírgula decimal) em número; NaN se inválido. */
 export function parseDecimal(text) {
   if (typeof text !== 'string') return NaN;

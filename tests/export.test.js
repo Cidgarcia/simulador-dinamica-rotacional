@@ -1,10 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { computeDynamics } from '../src/physics.js';
 import {
   buildComparisonCsv,
   buildExperimentCsv,
   buildSteinerComparisonCsv,
+  downloadCsv,
+  formatCsvCell,
   generateDiscreteSamples,
+  localTimestamp,
 } from '../src/export.js';
 
 describe('exportação CSV e geração de amostras exatas', () => {
@@ -39,7 +42,7 @@ describe('exportação CSV e geração de amostras exatas', () => {
     expect(csv).toContain('# F (N): 1');
     expect(csv).toContain('# Ruido (%): 2');
     expect(csv).toContain(
-      't_s;theta_teorico_rad;theta_medido_rad;omega_teorico_rads;omega_medido_rads;alfa_medido_rads2;energia_cinetica_J;trabalho_J'
+      't_s;theta_teor_rad;theta_med_rad;omega_teor_rads;omega_med_rads;alfa_med_rads2;K_rot_J;W_J'
     );
     expect(csv).toContain('2;2.666667;2.71;2.666667;2.62;1.35;2.666667;2.666667');
   });
@@ -81,12 +84,12 @@ describe('exportação CSV e geração de amostras exatas', () => {
       ],
     });
 
-    expect(csv).toContain('#Modo de Exportacao: Modo Cego para Relatorio');
+    expect(csv).toContain('# Modo de Exportacao: Modo Cego para Relatorio');
     expect(csv).not.toContain('# Alfa teorico');
-    expect(csv).not.toContain('theta_teorico_rad');
-    expect(csv).not.toContain('omega_teorico_rads');
+    expect(csv).not.toContain('theta_teor_rad');
+    expect(csv).not.toContain('omega_teor_rads');
     expect(csv).toContain(
-      't_s;theta_medido_rad;omega_medido_rads;alfa_medido_rads2;energia_cinetica_medida_J'
+      't_s;theta_med_rad;omega_med_rads;alfa_med_rads2;K_rot_med_J'
     );
     expect(csv).toContain('1;1.03;2.04;2.02;0.5202');
   });
@@ -191,8 +194,124 @@ describe('exportação CSV e geração de amostras exatas', () => {
     });
     expect(steinerCsvBr).toContain('# Experimento Comparativo 2: Teorema de Steiner');
     expect(steinerCsvBr).toContain('# I_central = Icm (kg.m2): 0,25 | Alfa_central (rad/s2): 2');
-    expect(steinerCsvBr).toContain('# Md2 (kg.m2): 0,5 | I_deslocado (kg.m2): 0,75 | Alfa_deslocado (rad/s2): 0,666667');
+    expect(steinerCsvBr).toContain('# Md2 (kg.m2): 0,5 | I_deslocado (kg.m2): 0,75 | Alfa_deslocado (rad/s2): 0,6666666667');
     // Colunas: t_s;alfa_central;omega_central;theta_central;energia_central;trabalho_central;alfa_deslocado;omega_deslocado;theta_deslocado;energia_deslocado;trabalho_deslocado
-    expect(steinerCsvBr).toContain('2;2;4;4;2;2;0,666667;1,333333;1,333333;0,666667;0,666667');
+    expect(steinerCsvBr).toContain('2;2;4;4;2;2;0,6666666667;1,333333333;1,333333333;0,6666666667;0,6666666667');
+  });
+});
+
+describe('precisão numérica do CSV (auditoria)', () => {
+  it('grava 10 algarismos significativos: erro relativo < 1e-6 % mesmo em t pequeno', () => {
+    const exatos = [0.2 ** 2 / 3 / 2, 2 / 3, 0.0266666666666667, 1.0666666666666667e-1, 8.333333e-5];
+    for (const v of exatos) {
+      const texto = formatCsvCell(v);
+      const lido = Number(texto);
+      expect(Math.abs(lido - v) / Math.abs(v)).toBeLessThan(1e-9); // 1e-9 = 1e-7 %
+    }
+    expect(formatCsvCell(0.0266666666666667)).toBe('0.02666666667');
+    expect(formatCsvCell(2 / 3, { decimalSeparator: ',' })).toBe('0,6666666667');
+  });
+
+  it('CSV do ensaio 5 (Steiner, d = R) em t = 0,2 s e 0,4 s não perde casas', () => {
+    const params = { geometry: 'disco', mass: 2, size: 0.5, axisOffset: 0.5, force: 1, direction: 1 };
+    const dynamics = computeDynamics(params);
+    const samples = generateDiscreteSamples({ dynamics, maxTime: 0.4, sampleDt: 0.2 });
+    const csv = buildExperimentCsv({ params, dynamics, samples, noiseEnabled: false });
+    const rows = csv
+      .replace('\uFEFF', '')
+      .trim()
+      .split('\r\n')
+      .filter((l) => !l.startsWith('#'))
+      .slice(1)
+      .map((l) => l.split(';').map(Number));
+    for (const [row, s] of rows.map((r, i) => [r, samples[i]])) {
+      if (s.t_s === 0) continue;
+      for (const [col, exato] of [
+        [1, s.theta_teorico_rad],
+        [3, s.omega_teorico_rads],
+        [6, s.energia_cinetica_J],
+        [7, s.trabalho_J],
+      ]) {
+        expect((Math.abs(row[col] - exato) / Math.abs(exato)) * 100).toBeLessThan(1e-4);
+      }
+    }
+  });
+
+  it('cabeçalho: ruído desligado declara incerteza de tempo 0; ligado, declarada e t nominal', () => {
+    const params = { geometry: 'disco', mass: 2, size: 0.5, axisOffset: 0, force: 1, direction: 1 };
+    const dynamics = computeDynamics(params);
+    const samples = generateDiscreteSamples({ dynamics, maxTime: 0.2, sampleDt: 0.2 });
+    const off = buildExperimentCsv({ params, dynamics, samples, noiseEnabled: false });
+    expect(off).toContain('# Incerteza instrumental de tempo (s): 0 (ruido desligado)');
+    expect(off).toContain('# Semente do ruido: nao se aplica (ruido desligado)');
+    const on = buildExperimentCsv({ params, dynamics, samples, noiseEnabled: true, noiseSeed: 42 });
+    expect(on).toContain('+-0.01 (declarada; t_s nominal, nao perturbado)');
+    expect(on).toContain('# Semente do ruido: 42');
+    const rand = buildExperimentCsv({ params, dynamics, samples, noiseEnabled: true });
+    expect(rand).toContain('# Semente do ruido: aleatoria (nao reproduzivel)');
+  });
+});
+
+describe('ruído reproduzível com semente (auditoria)', () => {
+  const params = { geometry: 'disco', mass: 2, size: 0.5, axisOffset: 0, force: 1, direction: 1 };
+  const dynamics = computeDynamics(params);
+  const gen = (seed, extra = {}) =>
+    generateDiscreteSamples({ dynamics, maxTime: 2, sampleDt: 0.2, noiseEnabled: true, noiseSigmaRel: 0.02, seed, ...extra });
+
+  it('mesma semente → CSV idêntico; semente diferente → leituras diferentes', () => {
+    const csvA = buildExperimentCsv({ params, dynamics, samples: gen(123), noiseEnabled: true, noiseSeed: 123 });
+    const csvB = buildExperimentCsv({ params, dynamics, samples: gen(123), noiseEnabled: true, noiseSeed: 123 });
+    const csvC = buildExperimentCsv({ params, dynamics, samples: gen(124), noiseEnabled: true, noiseSeed: 124 });
+    expect(csvA).toBe(csvB);
+    expect(csvC).not.toBe(csvA);
+  });
+
+  it('o ruído de cada instante não depende de quantas amostras já foram geradas', () => {
+    const curta = generateDiscreteSamples({ dynamics, maxTime: 0.6, sampleDt: 0.2, noiseEnabled: true, seed: 7 });
+    const longa = generateDiscreteSamples({ dynamics, maxTime: 2, sampleDt: 0.2, noiseEnabled: true, seed: 7 });
+    curta.forEach((s, i) => expect(s.omega_medido_rads).toBe(longa[i].omega_medido_rads));
+  });
+
+  it('em t = 0 não há ruído em θ e ω (condições iniciais impostas)', () => {
+    const [t0] = gen(99);
+    expect(t0.t_s).toBe(0);
+    expect(t0.theta_medido_rad).toBe(0);
+    expect(t0.omega_medido_rads).toBe(0);
+  });
+});
+
+describe('downloadCsv e nome de arquivo (auditoria)', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it('anexa o link ao DOM antes do clique e revoga a URL só depois', () => {
+    vi.useFakeTimers();
+    const events = [];
+    const link = {
+      style: {},
+      click: () => events.push('click'),
+      remove: () => events.push('remove'),
+    };
+    vi.stubGlobal('document', {
+      createElement: () => link,
+      body: { appendChild: () => events.push('append') },
+    });
+    vi.stubGlobal('URL', {
+      createObjectURL: () => 'blob:teste',
+      revokeObjectURL: () => events.push('revoke'),
+    });
+    downloadCsv('arquivo.csv', 'a;b\r\n');
+    expect(link.download).toBe('arquivo.csv');
+    expect(link.href).toBe('blob:teste');
+    expect(events).toEqual(['append', 'click']); // ainda não revogou
+    vi.advanceTimersByTime(1000);
+    expect(events).toEqual(['append', 'click', 'remove', 'revoke']);
+  });
+
+  it('localTimestamp usa a hora LOCAL, no formato AAAA-MM-DDTHH-MM-SS', () => {
+    const d = new Date(2026, 10, 10, 9, 5, 3); // construtor local
+    expect(localTimestamp(d)).toBe('2026-11-10T09-05-03');
   });
 });

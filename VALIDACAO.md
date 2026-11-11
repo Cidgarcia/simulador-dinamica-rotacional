@@ -52,10 +52,30 @@ Todos os cenários abaixo foram verificados nos cálculos (`src/physics.js`), na
 
 Foram executados e aprovados nesta auditoria:
 
-1. `npm test` — **29 testes automatizados aprovados** em 2 suítes (`tests/physics.test.js` e `tests/export.test.js`), cobrindo:
+1. `npm test` — **43 testes automatizados aprovados** em 2 suítes (`tests/physics.test.js` e `tests/export.test.js`), cobrindo:
    - Fórmulas de momento de inércia ($I_{\text{cm}}$, $Md^2$, $I = I_{\text{cm}} + Md^2$) e braço ($b = b_{\text{cm}} + d$) para as 4 geometrias;
    - Teste obrigatório completo do disco em $t = 2\text{ s}$ ($I = 0{,}25$, $\tau = 0{,}5$, $\alpha = 2$, $\omega = 4$, $\theta = 4$, $K_{\text{rot}} = 2\text{ J}$, $W = 2\text{ J}$);
    - Anel fino, duplicação da massa ($K_{\text{rot}} = W = 1\text{ J}$), duplicação da força ($K_{\text{rot}} = W = 8\text{ J}$) e Teorema de Steiner sob mesmo torque e na bancada 3D;
    - Amostragem discreta analítica exata (`generateDiscreteSamples`) sem deriva de quadros;
    - Ordenação cronológica, remoção de duplicatas, preservação de sinais no sentido horário e exportação CSV nos formatos Excel/Calc BR (vírgula decimal) e Científico (ponto decimal), além dos CSVs comparativos.
 2. `npm run build` — Build de produção com Vite concluído sem erros.
+
+## Auditoria técnica independente e correções (10–11/11/2026)
+
+Uma auditoria independente (script Node que importa o código real e o confronta com integração numérica) confirmou as fórmulas de I e b, W = K e os 5 ensaios de referência (erro ≤ 2,3×10⁻¹³ %), e apontou melhorias, todas aplicadas:
+
+| Achado | Correção |
+|---|---|
+| CSV com 6 casas fixas: 7/400 células > 10⁻⁴ % em t ≤ 0,4 s | 	oPrecision(10); agora 0/400 células acima de 10⁻⁴ % (pior caso 3×10⁻⁸ %) |
+| Nomes de colunas diferentes dos citados no pedido | Renomeadas: 	heta_teor_rad, 	heta_med_rad, omega_teor_rads, omega_med_rads, lfa_med_rads2, K_rot_J, W_J (modo cego: K_rot_med_J); tabela no README |
+| Texto "±2 %" sugeria limite máximo | Interface e README: σ = desvio-padrão (1σ), modelo multiplicativo |
+| ±0,01 s declarado mas não aplicado (inclusive com ruído desligado) | Cabeçalho:   (ruido desligado) ou "declarada; t_s nominal"; interface idem |
+| Ruído em t = 0 (piso 0,05) | σ_θ = σ_ω = 0 em t = 0 |
+| Math.random() sem semente | Campo "Semente do ruído"; mesmo ensaio → mesmo CSV; semente gravada no cabeçalho |
+| ormatWithUncertainty com 2 casas fixas | ormatWithSigma: σ com 2 algarismos significativos, valor com as mesmas casas |
+| #Modo sem espaço; nome do arquivo em UTC; <a> fora do DOM | # Modo; localTimestamp() (hora local); link anexado ao DOM e URL revogada após 1 s |
+| README sem aviso sobre # no Excel/pandas | Seção "Abrindo o CSV" no README |
+
+Novos testes (14): precisão do CSV, cabeçalho de incerteza/semente, reprodutibilidade por semente, ausência de ruído em t = 0, estatística de Box-Muller com 10⁶ amostras (média, σ, assimetria, curtose, regra 68-95-99,7), ormatWithSigma, downloadCsv (ordem DOM/click/revoke) e localTimestamp.
+
+**Limite declarado:** o app não foi exercitado em navegador real (cliques, download efetivo, abertura no Excel/Calc); a validação é por testes de unidade e build.

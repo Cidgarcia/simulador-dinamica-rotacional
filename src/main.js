@@ -11,11 +11,13 @@ import {
   TIME_INSTRUMENT_UNCERTAINTY,
   canvasRotationAngle,
   computeEnergetics,
+  createSeededRng,
   kinematics,
+  mixSeed,
   sampleExperimentalState,
   validateParams,
 } from './physics.js';
-import { formatFixed, formatNumber, parseDecimal } from './format.js';
+import { formatFixed, formatNumber, formatWithSigma, parseDecimal } from './format.js';
 import { createChart, createComparisonChart, createSteinerInertiaChart } from './charts.js';
 import {
   buildComparisonCsv,
@@ -23,6 +25,7 @@ import {
   buildSteinerComparisonCsv,
   downloadCsv,
   generateDiscreteSamples,
+  localTimestamp,
 } from './export.js';
 
 /* ---------------- Estado ---------------- */
@@ -47,6 +50,7 @@ const ui = {
   stopTime: 20,
   noiseEnabled: false,
   noiseSigmaRel: 0.02,
+  noiseSeed: null, // inteiro ≥ 0 → ruído reproduzível; null → aleatório (Math.random)
   sampleDt: 0.2,
   blindMode: false,
   text: {
@@ -80,6 +84,11 @@ let chartNoiseDraws = []; // sorteios normais fixos por índice de amostra do gr
 let latestMeasuredState = null;
 let samplesDirty = true;
 let discreteDirty = true;
+
+/** RNG das leituras instantâneas (fora da grade Δt): determinístico se houver semente; senão undefined → Math.random. */
+function liveRng(t) {
+  return ui.noiseSeed === null ? undefined : createSeededRng(mixSeed(ui.noiseSeed, Math.round(t * 1e6), 2));
+}
 
 /* ---------------- DOM ---------------- */
 
@@ -297,6 +306,7 @@ function syncSamplesToTime() {
     noiseEnabled: ui.noiseEnabled,
     noiseSigmaRel: ui.noiseSigmaRel,
     noiseDraws: discreteNoiseDraws,
+    seed: ui.noiseSeed,
   });
   discreteDirty = true;
 
@@ -312,11 +322,12 @@ function syncSamplesToTime() {
     let draw = chartNoiseDraws[k];
     if (!draw) {
       const drawValues = [];
+      const chartRng = ui.noiseSeed === null ? Math.random : createSeededRng(mixSeed(ui.noiseSeed, k, 1));
       sampleExperimentalState(realState, {
         enabled: true,
         sigmaRel: 0.02,
         rng: () => {
-          const v = Math.random();
+          const v = chartRng();
           drawValues.push(v);
           return v;
         },
@@ -351,6 +362,7 @@ function syncSamplesToTime() {
     const measured = sampleExperimentalState(s, {
       enabled: ui.noiseEnabled,
       sigmaRel: ui.noiseSigmaRel,
+      rng: liveRng(s.t),
     });
     nextSamples.push({
       t: s.t,
@@ -372,8 +384,9 @@ function syncSamplesToTime() {
   const lastDisc = discreteSamples[discreteSamples.length - 1];
   const s = experiment.state;
   if (lastDisc && s && Math.abs(lastDisc.t_s - s.t) < 1e-6) {
-    const sigmaOmega = ui.noiseEnabled ? ui.noiseSigmaRel * Math.max(Math.abs(s.omega), 0.05) : 0;
-    const sigmaTheta = ui.noiseEnabled ? ui.noiseSigmaRel * Math.max(Math.abs(s.theta), 0.05) : 0;
+    const atT0 = s.t === 0; // condições iniciais impostas: sem ruído em θ e ω
+    const sigmaOmega = ui.noiseEnabled && !atT0 ? ui.noiseSigmaRel * Math.max(Math.abs(s.omega), 0.05) : 0;
+    const sigmaTheta = ui.noiseEnabled && !atT0 ? ui.noiseSigmaRel * Math.max(Math.abs(s.theta), 0.05) : 0;
     const sigmaAlpha = ui.noiseEnabled ? Math.abs(s.alpha) * ui.noiseSigmaRel : 0;
     const sigmaKineticEnergy = ui.noiseEnabled ? s.I * Math.abs(s.omega) * sigmaOmega : 0;
     const sigmaWork = ui.noiseEnabled ? Math.abs(s.tau) * sigmaTheta : 0;
@@ -395,6 +408,7 @@ function syncSamplesToTime() {
     latestMeasuredState = sampleExperimentalState(s, {
       enabled: ui.noiseEnabled,
       sigmaRel: ui.noiseSigmaRel,
+      rng: liveRng(s.t),
     });
   }
 }
@@ -520,7 +534,7 @@ function initForm() {
       updateSampleTable();
       showNotice(
         ui.noiseEnabled
-          ? `Incerteza experimental ativada: simulando variações de ±${(ui.noiseSigmaRel * 100).toFixed(0)}% nas leituras do sensor.`
+          ? `Incerteza experimental ativada: simulando ruído gaussiano com σ = ${(ui.noiseSigmaRel * 100).toFixed(0)}% (1 desvio-padrão, proporcional ao valor) nas leituras do sensor.`
           : 'Modo ideal ativado: exibindo e exportando valores teóricos exatos (sem ruído).',
         'info'
       );
@@ -536,10 +550,33 @@ function initForm() {
       updateCharts();
       updateSampleTable();
       if (ui.noiseEnabled) {
-        showNotice(`Oscilação média do sensor ajustada para ±${(ui.noiseSigmaRel * 100).toFixed(0)}%.`, 'info');
+        showNotice(`Desvio-padrão relativo do sensor ajustado para σ = ${(ui.noiseSigmaRel * 100).toFixed(0)}%.`, 'info');
       }
     })
   );
+  const seedInput = document.querySelector('#noise-seed');
+  if (seedInput) {
+    seedInput.addEventListener('input', () => {
+      const raw = seedInput.value.trim();
+      const v = Number(raw);
+      ui.noiseSeed = raw !== '' && Number.isInteger(v) && v >= 0 && v <= 4294967295 ? v : null;
+      // Novos sorteios: regenera tabela, gráficos e CSV com a nova semente.
+      discreteNoiseDraws = [];
+      chartNoiseDraws = [];
+      syncSamplesToTime();
+      updateReadouts();
+      updateCharts();
+      updateSampleTable();
+      if (ui.noiseEnabled) {
+        showNotice(
+          ui.noiseSeed === null
+            ? 'Semente vazia/inválida: ruído aleatório (não reproduzível).'
+            : `Semente ${ui.noiseSeed}: o mesmo ensaio gerará sempre as mesmas leituras e o mesmo CSV.`,
+          'info'
+        );
+      }
+    });
+  }
   document.querySelectorAll('input[name="sampleDt"]').forEach((r) =>
     r.addEventListener('change', () => {
       if (!r.checked) return;
@@ -597,7 +634,7 @@ function handleExportMainCsv(decimalSeparator = ',') {
   if (!discreteSamples.length || !experiment.dynamics) return;
   syncSamplesToTime();
   const geometry = GEOMETRIES[ui.geometry].id;
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const stamp = localTimestamp();
   const csv = buildExperimentCsv({
     params: experiment.params,
     dynamics: experiment.dynamics,
@@ -607,6 +644,7 @@ function handleExportMainCsv(decimalSeparator = ',') {
     blindMode: ui.blindMode,
     decimalSeparator,
     columnSeparator: ';',
+    noiseSeed: ui.noiseSeed,
   });
   const modeSuffix = ui.blindMode ? '_modo_cego' : '';
   const fmtSuffix = decimalSeparator === ',' ? '_excel_br' : '_padrao';
@@ -673,10 +711,9 @@ function setText(node, text) {
 }
 
 function formatWithUncertainty(val, sigma, digits = 2) {
-  if (!ui.noiseEnabled || !Number.isFinite(sigma) || sigma <= 0) {
-    return formatFixed(val, digits);
-  }
-  return `${formatFixed(val, digits)} ± ${formatFixed(sigma, digits)}`;
+  if (!ui.noiseEnabled) return formatFixed(val, digits);
+  // Critério metrológico: σ com 2 algarismos significativos; valor com as mesmas casas decimais.
+  return formatWithSigma(val, sigma, { sigDigits: 2, fallbackDigits: digits });
 }
 
 function updateReadouts() {
@@ -689,7 +726,7 @@ function updateReadouts() {
   );
   setText(
     el.outputs['t-sub'],
-    ui.noiseEnabled ? 'Cronômetro c/ incerteza ±0,01 s' : 'Tempo exato da simulação'
+    ui.noiseEnabled ? 'Cronômetro c/ incerteza declarada ±0,01 s (t nominal)' : 'Tempo exato da simulação'
   );
   if (!s) {
     ['I', 'tau', 'alpha', 'omega', 'theta', 'krot', 'work'].forEach((k) => setText(el.outputs[k], '—'));
@@ -706,7 +743,7 @@ function updateReadouts() {
   const m =
     latestMeasuredState && Math.abs((latestMeasuredState.t ?? 0) - s.t) < 1e-6
       ? latestMeasuredState
-      : sampleExperimentalState(s, { enabled: ui.noiseEnabled, sigmaRel: ui.noiseSigmaRel });
+      : sampleExperimentalState(s, { enabled: ui.noiseEnabled, sigmaRel: ui.noiseSigmaRel, rng: liveRng(s.t) });
   latestMeasuredState = m;
 
   setText(el.outputs.I, formatFixed(s.I, 3));
@@ -1224,7 +1261,7 @@ function toggleComparison() {
 function handleExportComparisonCsv(decimalSeparator = ',') {
   if (!comparison.disk?.dynamics || !comparison.ring?.dynamics || !comparison.hasStarted) return;
   const p = comparison.disk.params;
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const stamp = localTimestamp();
   const csv = buildComparisonCsv({
     mass: p.mass,
     radius: p.size,
@@ -1486,7 +1523,7 @@ function toggleSteinerComparison() {
 function handleExportSteinerCsv(decimalSeparator = ',') {
   if (!steiner.central?.dynamics || !steiner.displaced?.dynamics || !steiner.hasStarted) return;
   const p = steiner.displaced.params;
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const stamp = localTimestamp();
   const csv = buildSteinerComparisonCsv({
     geometry: p.geometry,
     mass: p.mass,
