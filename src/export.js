@@ -35,6 +35,14 @@ export function formatCsvCell(value, { decimalSeparator = '.', columnSeparator =
 }
 
 /**
+ * Linhas de metadados (#) ocupam uma única célula: o separador de colunas dentro do texto
+ * faria o Excel/Calc partir a linha em várias células, então ele é trocado por outro caractere.
+ */
+function safeComment(line, columnSeparator) {
+  return line.replaceAll(columnSeparator, columnSeparator === ',' ? ';' : ',');
+}
+
+/**
  * Gera amostras discretas exatamente nos instantes múltiplos de `sampleDt` (0, Δt, 2Δt, ..., <= upToTime),
  * eliminando desvios acumulados pela taxa de quadros (FPS) do navegador.
  */
@@ -170,7 +178,7 @@ export function buildExperimentCsv({
   // Incerteza de tipo B do cronômetro: só é declarada com o ruído ligado. Os instantes t_s da
   // tabela são NOMINAIS (k·Δt); a incerteza não é aplicada às leituras.
   const incTempo = noiseEnabled
-    ? `${decimalSeparator === ',' ? '+-0,01' : '+-0.01'} (declarada; t_s nominal, nao perturbado)`
+    ? `${decimalSeparator === ',' ? '+-0,01' : '+-0.01'} (declarada, t_s nominal, nao perturbado)`
     : '0 (ruido desligado)';
   const seedLabel =
     noiseSeed !== null && noiseSeed !== undefined && Number.isFinite(Number(noiseSeed))
@@ -192,7 +200,7 @@ export function buildExperimentCsv({
     `# Sentido: ${params.direction > 0 ? 'anti-horario (+)' : 'horario (-)'}`,
     `# Torque (N.m): ${cell(dynamics.tau)}`,
     ...(blindMode ? [] : [`# Alfa teorico (rad/s2): ${cell(dynamics.alpha)}`]),
-    `# Ruido (%): ${cell(noisePct)} (desvio-padrao relativo, 1 sigma; modelo multiplicativo)`,
+    `# Ruido (%): ${cell(noisePct)} (desvio-padrao relativo, 1 sigma, modelo multiplicativo)`,
     `# Semente do ruido: ${noiseEnabled ? seedLabel : 'nao se aplica (ruido desligado)'}`,
     `# Incerteza instrumental de tempo (s): ${incTempo}`,
   ];
@@ -244,7 +252,7 @@ export function buildExperimentCsv({
     return rowData.map(cell).join(columnSeparator);
   });
 
-  const allLines = [...commentHeader, columns.join(columnSeparator), ...rows];
+  const allLines = [...commentHeader.map((l) => safeComment(l, columnSeparator)), columns.join(columnSeparator), ...rows];
   return `\uFEFF${allLines.join('\r\n')}\r\n`;
 }
 
@@ -335,7 +343,7 @@ export function buildComparisonCsv({
     );
   }
 
-  const allLines = [...commentHeader, columns.join(columnSeparator), ...rows];
+  const allLines = [...commentHeader.map((l) => safeComment(l, columnSeparator)), columns.join(columnSeparator), ...rows];
   return `\uFEFF${allLines.join('\r\n')}\r\n`;
 }
 
@@ -442,7 +450,7 @@ export function buildSteinerComparisonCsv({
     );
   }
 
-  const allLines = [...commentHeader, columns.join(columnSeparator), ...rows];
+  const allLines = [...commentHeader.map((l) => safeComment(l, columnSeparator)), columns.join(columnSeparator), ...rows];
   return `\uFEFF${allLines.join('\r\n')}\r\n`;
 }
 

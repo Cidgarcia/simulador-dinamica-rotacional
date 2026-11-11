@@ -245,7 +245,7 @@ describe('precisão numérica do CSV (auditoria)', () => {
     expect(off).toContain('# Incerteza instrumental de tempo (s): 0 (ruido desligado)');
     expect(off).toContain('# Semente do ruido: nao se aplica (ruido desligado)');
     const on = buildExperimentCsv({ params, dynamics, samples, noiseEnabled: true, noiseSeed: 42 });
-    expect(on).toContain('+-0.01 (declarada; t_s nominal, nao perturbado)');
+    expect(on).toContain('+-0.01 (declarada, t_s nominal, nao perturbado)');
     expect(on).toContain('# Semente do ruido: 42');
     const rand = buildExperimentCsv({ params, dynamics, samples, noiseEnabled: true });
     expect(rand).toContain('# Semente do ruido: aleatoria (nao reproduzivel)');
@@ -313,5 +313,40 @@ describe('downloadCsv e nome de arquivo (auditoria)', () => {
   it('localTimestamp usa a hora LOCAL, no formato AAAA-MM-DDTHH-MM-SS', () => {
     const d = new Date(2026, 10, 10, 9, 5, 3); // construtor local
     expect(localTimestamp(d)).toBe('2026-11-10T09-05-03');
+  });
+});
+describe('linhas de metadados no Excel (auditoria)', () => {
+  const linhasDeMetadados = (csv) =>
+    csv.replace('\uFEFF', '').split('\r\n').filter((l) => l.startsWith('#'));
+
+  it('nenhuma linha # contém o separador de colunas (senão o Excel a parte em várias células)', () => {
+    const params = { geometry: 'disco', mass: 2, size: 0.5, axisOffset: 0.5, force: 1, direction: 1 };
+    const dynamics = computeDynamics(params);
+    const samples = generateDiscreteSamples({ dynamics, maxTime: 0.4, sampleDt: 0.2, noiseEnabled: true, seed: 1 });
+    for (const noiseEnabled of [false, true]) {
+      for (const blindMode of [false, true]) {
+        for (const decimalSeparator of ['.', ',']) {
+          const csv = buildExperimentCsv({ params, dynamics, samples, noiseEnabled, blindMode, decimalSeparator, noiseSeed: 1 });
+          for (const l of linhasDeMetadados(csv)) expect(l).not.toContain(';');
+        }
+      }
+    }
+    for (const csv of [
+      buildComparisonCsv({ mass: 2, radius: 0.5, force: 1, maxTime: 1, sampleDt: 0.5, decimalSeparator: ',' }),
+      buildSteinerComparisonCsv({ geometry: 'disco', mass: 2, size: 0.5, force: 1, maxTime: 1, sampleDt: 0.5, decimalSeparator: ',' }),
+    ]) {
+      for (const l of linhasDeMetadados(csv)) expect(l).not.toContain(';');
+    }
+  });
+
+  it('todas as linhas de dados têm o mesmo número de colunas que o cabeçalho da tabela', () => {
+    const params = { geometry: 'disco', mass: 2, size: 0.5, axisOffset: 0, force: 1, direction: 1 };
+    const dynamics = computeDynamics(params);
+    const samples = generateDiscreteSamples({ dynamics, maxTime: 1, sampleDt: 0.5 });
+    const csv = buildExperimentCsv({ params, dynamics, samples, noiseEnabled: true, decimalSeparator: ',' });
+    const dados = csv.replace('\uFEFF', '').trim().split('\r\n').filter((l) => !l.startsWith('#'));
+    const colunas = dados[0].split(';').length;
+    expect(colunas).toBe(8);
+    dados.forEach((l) => expect(l.split(';').length).toBe(colunas));
   });
 });
