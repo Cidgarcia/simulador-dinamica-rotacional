@@ -453,10 +453,10 @@
           </div>
           <button type="button" class="btn btn-secondary btn-sm" data-guide="base">Restaurar caso base (Disco · M = 2 kg · R = 0,5 m · F = 1 N · d = 0)</button>
         </div>
-        <p class="section-lead">Use estes 5 roteiros para testar hipóteses, coletar dados em <var>t</var> = 2 s e explicar os resultados com segurança em relatórios e seminários.</p>
+        <p class="section-lead">Use estes 3 roteiros para testar hipóteses, coletar dados em <var>t</var> = 2 s e explicar os resultados com segurança em relatórios e seminários.</p>
         <div class="guide-grid">
           <article class="guide-card">
-            <div class="guide-card-head"><span class="guide-number">01</span><h3>Disco maciço versus anel fino</h3></div>
+            <div class="guide-card-head"><span class="guide-number">01</span><h3>Experimento 1 · Disco maciço versus anel fino</h3></div>
             <ul class="guide-steps">
               <li><strong>Objetivo:</strong> Descobrir como a distribuição da massa altera a resistência ao giro.</li>
               <li><strong>O que fazer:</strong> Clique em <em>Carregar comparação</em> (<var>M</var> = 2 kg, <var>R</var> = 0,5 m, <var>d</var> = 0 m e <var>F</var> = 1 N) e inicie a comparação.</li>
@@ -470,7 +470,7 @@
           </article>
 
           <article class="guide-card">
-            <div class="guide-card-head"><span class="guide-number">02</span><h3>Dobrar a massa</h3></div>
+            <div class="guide-card-head"><span class="guide-number">02</span><h3>Experimento 2 · Dobrar a massa</h3></div>
             <ul class="guide-steps">
               <li><strong>Objetivo:</strong> Ver o que acontece com o torque, a aceleração e a energia ao dobrar a massa.</li>
               <li><strong>O que fazer:</strong> No disco com <var>R</var> = 0,5 m, <var>d</var> = 0 m e <var>F</var> = 1 N, compare o caso base (<var>M</var> = 2 kg) com <var>M</var> = 4 kg.</li>
@@ -485,7 +485,7 @@
           </article>
 
           <article class="guide-card">
-            <div class="guide-card-head"><span class="guide-number">03</span><h3>Dobrar a força</h3></div>
+            <div class="guide-card-head"><span class="guide-number">03</span><h3>Experimento 3 · Dobrar a força</h3></div>
             <ul class="guide-steps">
               <li><strong>Objetivo:</strong> Verificar como o aumento da força altera o torque, a aceleração e o trabalho.</li>
               <li><strong>O que fazer:</strong> No disco com <var>M</var> = 2 kg, <var>R</var> = 0,5 m e <var>d</var> = 0 m, compare <var>F</var> = 1 N com <var>F</var> = 2 N.</li>
@@ -496,35 +496,6 @@
             <div class="guide-actions">
               <button type="button" class="btn btn-secondary btn-sm" data-guide="force">Aplicar F = 2 N</button>
               <button type="button" class="btn btn-ghost btn-sm" data-guide="base">Comparar c/ F = 1 N</button>
-            </div>
-          </article>
-
-          <article class="guide-card">
-            <div class="guide-card-head"><span class="guide-number">04</span><h3>Steiner sob o mesmo torque</h3></div>
-            <ul class="guide-steps">
-              <li><strong>Objetivo:</strong> Isolar o efeito do deslocamento do eixo (<var>d</var>) mantendo o mesmo torque nos dois casos.</li>
-              <li><strong>O que fazer:</strong> Clique em <em>Comparar Steiner</em> (<var>M</var> = 2 kg, <var>R</var> = 0,5 m, <var>d</var> = 0,5 m sob torque fixo <var>τ</var> = 0,5 N·m).</li>
-              <li><strong>O que observar:</strong> O termo <var>Md</var>² soma 0,50 kg·m² à inércia central (0,25 kg·m²), triplicando a inércia total para 0,75 kg·m². A aceleração cai para um terço (de 2 para ≈ 0,67 rad/s²).</li>
-              <li><strong>Por que acontece:</strong> Girar um objeto fora do seu centro de massa exige fazer o próprio centro de massa orbitar ao redor do eixo, somando <var>Md</var>² à resistência ao giro.</li>
-            </ul>
-            <p class="guide-conclusion"><strong>Conclusão para apresentação:</strong> “Sob o mesmo torque, deslocar o eixo de rotação aumenta o momento de inércia em Md² pelo Teorema de Steiner e reduz a aceleração angular.”</p>
-            <div class="guide-actions">
-              <button type="button" class="btn btn-secondary btn-sm" data-guide="steiner-compare">Comparar Steiner</button>
-            </div>
-          </article>
-
-          <article class="guide-card">
-            <div class="guide-card-head"><span class="guide-number">05</span><h3>Steiner na bancada 3D (mesma força)</h3></div>
-            <ul class="guide-steps">
-              <li><strong>Objetivo:</strong> Ver na bancada 3D como deslocar o eixo altera tanto a inércia (<var>I</var>) quanto o braço da força (<var>b</var>).</li>
-              <li><strong>O que fazer:</strong> Clique em <em>Aplicar d = 0,5 m em 3D</em> no disco (<var>M</var> = 2 kg, <var>R</var> = 0,5 m, <var>F</var> = 1 N).</li>
-              <li><strong>O que observar:</strong> O braço da força aumenta para <var>b</var> = <var>R</var> + <var>d</var> = 1,0 m (dobrando o torque para 1,0 N·m), mas a inércia triplica para 0,75 kg·m². A aceleração passa de 2 para ≈ 1,33 rad/s².</li>
-              <li><strong>Por que acontece:</strong> Afastar o eixo aumenta a alavanca (<var>b</var> = <var>R</var> + <var>d</var>), mas o momento de inércia cresce com o quadrado da distância (<var>Md</var>²), aumentando mais rápido que o torque.</li>
-            </ul>
-            <p class="guide-conclusion"><strong>Conclusão para apresentação:</strong> “Ao afastar o eixo mantendo a mesma força na borda oposta, o braço da força cresce linearmente (R + d), mas a inércia cresce com d², reduzindo a aceleração.”</p>
-            <div class="guide-actions">
-              <button type="button" class="btn btn-secondary btn-sm" data-guide="steiner-main">Aplicar d = 0,5 m em 3D</button>
-              <button type="button" class="btn btn-ghost btn-sm" data-guide="base">Voltar p/ d = 0 m</button>
             </div>
           </article>
         </div>

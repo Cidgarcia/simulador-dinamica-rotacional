@@ -49,11 +49,9 @@ Explore de forma visual e intuitiva como a **massa**, o **formato do corpo**, o 
 
 | # | Experimento | Objetivo | Conclusão pronta para apresentação |
 |---|---|---|---|
-| **01** | **Disco maciço vs. anel fino** | Descobrir como o formato do objeto altera a aceleração quando massa, raio e força são iguais. | *"Para mesma massa, mesmo raio e mesmo torque, o anel tem o dobro do momento de inércia do disco e, por isso, apresenta metade da aceleração angular."* |
-| **02** | **Dobrar a massa** | Ver o que acontece com o giro e com a energia quando dobramos a massa mantendo o raio e a força constantes. | *"Quando dobramos a massa, mantendo o raio e o torque constantes, o momento de inércia dobra e a aceleração angular cai pela metade (e a energia acumulada no mesmo tempo também cai pela metade)."* |
-| **03** | **Dobrar a força** | Descobrir como a força aplicada afeta o torque, a aceleração e a energia mantendo o corpo inalterado. | *"Quando dobramos a força tangencial mantendo o corpo e o eixo fixos, o torque dobra, a aceleração angular dobra e a energia cinética acumulada no mesmo tempo quadruplica."* |
-| **04** | **Steiner sob o mesmo torque** | Isolar o efeito do deslocamento do eixo ($d$) sobre a inércia aplicando exatamente o mesmo torque nos dois corpos. | *"Pelo Teorema de Steiner ($I = I_{\text{cm}} + Md^2$), deslocar o eixo até a borda do disco triplica seu momento de inércia e reduz sua aceleração angular para um terço quando o torque é mantido constante."* |
-| **05** | **Steiner na bancada 3D** | Observar na bancada 3D como o deslocamento do eixo altera ao mesmo tempo a inércia ($I$) e o braço da força ($b = R + d$). | *"Na bancada 3D com força constante na borda oposta, deslocar o eixo aumenta tanto o braço da força quanto o momento de inércia; como a inércia cresce com $d^2$, o ganho de inércia domina e a aceleração angular diminui."* |
+| **01** | **Experimento 1 · Disco maciço vs. anel fino** | Descobrir como o formato do objeto altera a aceleração quando massa, raio e força são iguais. | *"Para mesma massa, mesmo raio e mesmo torque, o anel tem o dobro do momento de inércia do disco e, por isso, apresenta metade da aceleração angular."* |
+| **02** | **Experimento 2 · Dobrar a massa** | Ver o que acontece com o giro e com a energia quando dobramos a massa mantendo o raio e a força constantes. | *"Quando dobramos a massa, mantendo o raio e o torque constantes, o momento de inércia dobra e a aceleração angular cai pela metade (e a energia acumulada no mesmo tempo também cai pela metade)."* |
+| **03** | **Experimento 3 · Dobrar a força** | Descobrir como a força aplicada afeta o torque, a aceleração e a energia mantendo o corpo inalterado. | *"Quando dobramos a força tangencial mantendo o corpo e o eixo fixos, o torque dobra, a aceleração angular dobra e a energia cinética acumulada no mesmo tempo quadruplica."* |
 
 ---
 
